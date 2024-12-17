@@ -1211,13 +1211,58 @@ static void requestGetNeighboringCellIds(void* data, size_t datalen, RIL_Token t
     (void)data;
     (void)datalen;
 
-    RIL_NeighboringCell info[] = {
-        { "2024", 90 },
-        { "2025", 91 },
-    };
+    ATResponse* p_response = NULL;
+    RIL_Errno ril_err = RIL_E_SUCCESS;
+    RIL_CellInfo_v12* cell_info_lists = NULL;
+    ATLine* cur = NULL;
+    int neighbor_cell_num = 0;
+    int cell_num = 0;
+    int err = -1;
 
-    RIL_onRequestComplete(t, RIL_E_SUCCESS, &info,
-        sizeof(info) / sizeof(info[0]) * sizeof(RIL_NeighboringCell*));
+    err = at_send_command_multiline("AT^MONNC", "^MONNC:", &p_response);
+    if (err != AT_ERROR_OK || !p_response || p_response->success != AT_OK) {
+        RLOGE("Failure occurred in sending AT^MONNC in %s due to: %s", __func__, at_io_err_str(err));
+        ril_err = RIL_E_GENERIC_FAILURE;
+        goto on_exit;
+    }
+
+    for (cur = p_response->p_intermediates; cur; cur = cur->p_next) {
+        cell_num++;
+    }
+
+    cell_info_lists = calloc(cell_num, sizeof(RIL_CellInfo_v12));
+    if (cell_info_lists == NULL) {
+        RLOGE("Fail to allocate memory in %s", __func__);
+        ril_err = RIL_E_NO_MEMORY;
+        goto on_exit;
+    }
+
+    for (cur = p_response->p_intermediates; cur != NULL && neighbor_cell_num < cell_num; cur = cur->p_next) {
+        err = get_neighboring_cell_info_from_response(cur->line, cell_info_lists + neighbor_cell_num);
+
+        if (err < 0) {
+            RLOGE("Fail to parse neighboring cell info in %s", __func__);
+            ril_err = RIL_E_GENERIC_FAILURE;
+            goto on_exit;
+        } else if (err == 0) {
+            RLOGW("No available neighboring cell info in %s", __func__);
+            break;
+        }
+
+        neighbor_cell_num++;
+    }
+
+    if (!neighbor_cell_num) {
+        RLOGE("Failed to find valid neighboring cell");
+        ril_err = RIL_E_GENERIC_FAILURE;
+        goto on_exit;
+    }
+
+on_exit:
+    RIL_onRequestComplete(t, ril_err, ril_err == RIL_E_SUCCESS ? cell_info_lists : NULL,
+        ril_err == RIL_E_SUCCESS ? neighbor_cell_num * sizeof(RIL_CellInfo_v12) : 0);
+    at_response_free(p_response);
+    free(cell_info_lists);
 }
 
 static void requestSetNetowkAutoMode(void* data, size_t datalen, RIL_Token t)
