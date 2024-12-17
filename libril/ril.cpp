@@ -250,7 +250,6 @@ static int responseSsn(Parcel& p, void* response, size_t responselen);
 static int responseSimStatus(Parcel& p, void* response, size_t responselen);
 static int responseImsStatus(Parcel& p, void* response, size_t responselen);
 static int responseGsmBrSmsCnf(Parcel& p, void* response, size_t responselen);
-static int responseCellList(Parcel& p, void* response, size_t responselen);
 static int responseRilSignalStrength(Parcel& p, void* response, size_t responselen);
 static int responseSimRefresh(Parcel& p, void* response, size_t responselen);
 static int responseCellInfoList(Parcel& p, void* response, size_t responselen);
@@ -1953,41 +1952,6 @@ static int responseSsn(Parcel& p, void* response, size_t responselen)
         (p_cur->notificationType == 0) ? "mo" : "mt",
         p_cur->code, p_cur->index, p_cur->type,
         (char*)p_cur->number);
-    closeResponse;
-
-    return 0;
-}
-
-static int responseCellList(Parcel& p, void* response, size_t responselen)
-{
-    int num;
-
-    if (response == NULL && responselen != 0) {
-        RLOGE("invalid response: NULL");
-        return RIL_ERRNO_INVALID_RESPONSE;
-    }
-
-    if (responselen % sizeof(RIL_NeighboringCell*) != 0) {
-        RLOGE("responseCellList: invalid response length %d expected multiple of %d\n",
-            (int)responselen, (int)sizeof(RIL_NeighboringCell*));
-        return RIL_ERRNO_INVALID_RESPONSE;
-    }
-
-    startResponse;
-    /* number of records */
-    num = responselen / sizeof(RIL_NeighboringCell*);
-    p.writeInt32(num);
-
-    for (int i = 0; i < num; i++) {
-        RIL_NeighboringCell* p_cur = &((RIL_NeighboringCell*)response)[i];
-
-        p.writeInt32(p_cur->rssi);
-        writeStringToParcel(p, p_cur->cid);
-
-        appendPrintBuf("%s[cid=%s,rssi=%d],", printBuf,
-            p_cur->cid, p_cur->rssi);
-    }
-    removeLastChar;
     closeResponse;
 
     return 0;
