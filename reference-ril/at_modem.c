@@ -454,6 +454,7 @@ int techFromModemType(int mdmtype)
         break;
     case MDM_LTE:
         ret = RADIO_TECH_LTE;
+        break;
     case MDM_NR:
         ret = RADIO_TECH_NR;
         break;
