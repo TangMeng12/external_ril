@@ -324,7 +324,7 @@ static void requestDtmfStart(void* data, size_t datalen, RIL_Token t)
     (void)datalen;
 
     char c_key;
-    char* cmd;
+    char* cmd = NULL;
     ATResponse* p_response = NULL;
     int err = -1;
     RIL_Errno ril_err = RIL_E_SUCCESS;
