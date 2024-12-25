@@ -1041,6 +1041,18 @@ on_exit:
     free(cmd);
 }
 
+static void requestQueryFacilityLock(int request, char** data,
+    size_t datalen, RIL_Token t)
+{
+    char* lockData[4];
+
+    lockData[0] = ((char**)data)[0];
+    lockData[1] = "2"; /* ofono doesn't send the operation code */
+    lockData[2] = ((char**)data)[1];
+    lockData[3] = ((char**)data)[2];
+    requestFacilityLock(request, lockData, datalen + sizeof(char*), t);
+}
+
 static void requestSetSuppServiceNotifications(void* data, size_t datalen,
     RIL_Token t)
 {
@@ -1542,12 +1554,7 @@ void on_request_sim(int request, void* data, size_t datalen, RIL_Token t)
         requestCancelUSSD(data, datalen, t);
         break;
     case RIL_REQUEST_QUERY_FACILITY_LOCK:
-        char* lockData[4];
-        lockData[0] = ((char**)data)[0];
-        lockData[1] = "2";
-        lockData[2] = ((char**)data)[1];
-        lockData[3] = ((char**)data)[2];
-        requestFacilityLock(request, lockData, datalen + sizeof(char*), t);
+        requestQueryFacilityLock(request, data, datalen, t);
         break;
     case RIL_REQUEST_SET_FACILITY_LOCK:
         requestFacilityLock(request, data, datalen, t);
