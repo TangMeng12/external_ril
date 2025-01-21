@@ -229,12 +229,18 @@ static void requestScreenState(void* data, size_t datalen, RIL_Token t)
             goto on_exit;
         }
 
+        at_response_free(p_response);
+        p_response = NULL;
+
         err = at_send_command("AT+CREG=1", &p_response);
         if (err != AT_ERROR_OK || !p_response || p_response->success != AT_OK) {
             RLOGE("Failure occurred in sending %s due to: %s", "AT+CREG=1", at_io_err_str(err));
             ril_err = RIL_E_GENERIC_FAILURE;
             goto on_exit;
         }
+
+        at_response_free(p_response);
+        p_response = NULL;
 
         err = at_send_command("AT+CGREG=1", &p_response);
         if (err != AT_ERROR_OK || !p_response || p_response->success != AT_OK) {
@@ -251,12 +257,18 @@ static void requestScreenState(void* data, size_t datalen, RIL_Token t)
             goto on_exit;
         }
 
+        at_response_free(p_response);
+        p_response = NULL;
+
         err = at_send_command("AT+CREG=2", &p_response);
         if (err != AT_ERROR_OK || !p_response || p_response->success != AT_OK) {
             RLOGE("Failure occurred in sending %s due to: %s", "AT+CREG=2", at_io_err_str(err));
             ril_err = RIL_E_GENERIC_FAILURE;
             goto on_exit;
         }
+
+        at_response_free(p_response);
+        p_response = NULL;
 
         err = at_send_command("AT+CGREG=2", &p_response);
         if (err != AT_ERROR_OK || !p_response || p_response->success != AT_OK) {
