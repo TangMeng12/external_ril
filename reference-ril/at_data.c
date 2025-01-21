@@ -318,6 +318,7 @@ static void requestOrSendDataCallList(int cid, RIL_Token* t)
     }
 
     at_response_free(p_response);
+    p_response = NULL;
 
     err = at_send_command_multiline("AT+CGDCONT?", "+CGDCONT:", &p_response);
     if (err != AT_ERROR_OK || !p_response || p_response->success != AT_OK) {

@@ -105,8 +105,11 @@ static void onSIMReady(void)
     err = at_send_command_singleline("AT+CSMS=1", "+CSMS:", &p_response);
     if (err != AT_ERROR_OK || !p_response || p_response->success != AT_OK) {
         RLOGE("Failure occurred in sending %s due to: %s", "AT+CSMS=1", at_io_err_str(err));
-        return;
+        goto on_exit;
     }
+
+    at_response_free(p_response);
+    p_response = NULL;
 
     /*
      * Always send SMS messages directly to the TE
@@ -121,8 +124,11 @@ static void onSIMReady(void)
     err = at_send_command("AT+CNMI=1,2,2,1,1", &p_response);
     if (err != AT_ERROR_OK || !p_response || p_response->success != AT_OK) {
         RLOGE("Failure occurred in sending %s due to: %s", "AT+CNMI=1,2,2,1,1", at_io_err_str(err));
-        return;
+        goto on_exit;
     }
+
+on_exit:
+    at_response_free(p_response);
 }
 
 static void requestOperator(void* data, size_t datalen, RIL_Token t)
