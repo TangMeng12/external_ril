@@ -953,6 +953,9 @@ static void requestImsRegState(void* data, size_t datalen, RIL_Token t)
         goto on_exit;
     }
 
+    at_response_free(p_response);
+    p_response = NULL;
+
     err = at_send_command_singleline("AT+CNUM", "+CNUM:", &p_response);
     if (err != AT_ERROR_OK || !p_response || p_response->success != AT_OK) {
         RLOGE("Failure occurred in sending %s due to: %s", "AT+CNUM", at_io_err_str(err));
