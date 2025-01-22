@@ -416,6 +416,7 @@ static void requestEnableModem(void* data, size_t datalen, RIL_Token t)
         return;
     }
 
+    sleep(3); // for emulator;
     s_modem_enabled = *(int*)data;
     if (s_modem_enabled == 0) {
         err = at_send_command("AT+CFUN=0", &p_response);
