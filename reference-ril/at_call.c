@@ -984,64 +984,53 @@ on_exit:
 static void requestSetCallForward(void* data, size_t datalen, RIL_Token t)
 {
     int err = -1;
-    int ret = -1;
     char* cmd = NULL;
-    char* cmd2 = NULL;
-    size_t offset = 0;
     ATResponse* p_response = NULL;
     RIL_CallForwardInfo* info = NULL;
     RIL_Errno ril_err = RIL_E_SUCCESS;
 
     if (data == NULL) {
-        RLOGE("requestSetCallForward data is null!");
+        RLOGE("requestSetCallForward: data is NULL");
         RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
         return;
     }
 
     info = (RIL_CallForwardInfo*)data;
 
-    if (info->status == 3 && info->number == NULL) {
-        RLOGE("Invalid arguments in requestSetCallForward");
-        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
-        return;
+    if (datalen != sizeof(*info) || (info->status == 3 && info->number == NULL)) {
+        RLOGE("requestSetCallForward: invalid data");
+        ril_err = RIL_E_GENERIC_FAILURE;
+        goto on_exit;
     }
 
-    ret = asprintf(&cmd, "AT+CCFCU=%d,%d,%d,%d,\"%s\",%d", info->reason,
-        info->status, 2, info->toa, info->number ? info->number : "",
-        info->serviceClass);
-    if (ret < 0) {
-        RLOGE("Failed to allocate memory");
+    if (asprintf(&cmd, "AT+CCFCU=%d,%d,%d,%d,\"%s\",%d",
+            info->reason, info->status, 2, info->toa,
+            info->number ? info->number : "", info->serviceClass)
+        == -1) {
+        RLOGE("Failed to allocate memory for command string");
         ril_err = RIL_E_NO_MEMORY;
         goto on_exit;
     }
 
-    offset += strlen(cmd);
-
-    if (info->serviceClass == 0) {
-        if (info->timeSeconds != 0 && info->status == 3) {
-            if (asprintf(&cmd2, "%s,\"\",\"\",,%d", cmd, info->timeSeconds) < 0) {
-                RLOGE("Failed to allocate memory");
-                ril_err = RIL_E_NO_MEMORY;
-                goto on_exit;
-            }
+    if (info->reason == 2 && info->status == 3 && info->timeSeconds > 0) {
+        char* cmd_with_time = NULL;
+        if (asprintf(&cmd_with_time, "%s,\"\",\"\",,%d", cmd, info->timeSeconds) == -1) {
+            ril_err = RIL_E_NO_MEMORY;
+            goto on_exit;
         }
+        free(cmd);
+        cmd = cmd_with_time;
     } else {
-        if (info->timeSeconds != 0 && info->status == 3) {
-            if (asprintf(&cmd2, "%s,\"\",\"\",,%d", cmd, info->timeSeconds) < 0) {
-                RLOGE("Failed to allocate memory");
-                ril_err = RIL_E_NO_MEMORY;
-                goto on_exit;
-            }
-        } else {
-            if (asprintf(&cmd2, "%s,\"\"", cmd) < 0) {
-                RLOGE("Failed to allocate memory");
-                ril_err = RIL_E_NO_MEMORY;
-                goto on_exit;
-            }
+        char* cmd_with_empty = NULL;
+        if (asprintf(&cmd_with_empty, "%s,\"\"", cmd) == -1) {
+            ril_err = RIL_E_NO_MEMORY;
+            goto on_exit;
         }
+        free(cmd);
+        cmd = cmd_with_empty;
     }
 
-    err = at_send_command_multiline(cmd2, "+CCFCU:", &p_response);
+    err = at_send_command_multiline(cmd, "+CCFCU:", &p_response);
     if (err != AT_ERROR_OK || !p_response || p_response->success != AT_OK) {
         RLOGE("Failure occurred in sending %s due to: %s", cmd, at_io_err_str(err));
         ril_err = RIL_E_GENERIC_FAILURE;
@@ -1055,7 +1044,6 @@ on_exit:
     RIL_onRequestComplete(t, ril_err, NULL, 0);
     at_response_free(p_response);
     free(cmd);
-    free(cmd2);
 }
 
 static void requestSetClir(void* data, size_t datalen, RIL_Token t)
