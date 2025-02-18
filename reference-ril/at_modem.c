@@ -294,8 +294,6 @@ static void requestGetModemStatus(void* data, size_t datalen, RIL_Token t)
     return;
 }
 
-static uint64_t s_last_activity_info_query = 0;
-
 static void requestSuppressMessageReport(void* data, size_t datalen, RIL_Token t)
 {
     int msg_list;
@@ -449,16 +447,76 @@ static void requestGetActivityInfo(void* data, size_t datalen, RIL_Token t)
     (void)data;
     (void)datalen;
 
-    uint64_t curTime = ril_nano_time();
-    RIL_ActivityStatsInfo stats = {
-        0, // sleep_mode_time_ms
-        ((curTime - s_last_activity_info_query) / 1000000) - 1, // idle_mode_time_ms
-        { 0, 0, 0, 0, 0 }, // tx_mode_time_ms
-        0 // rx_mode_time_ms
-    };
-    s_last_activity_info_query = curTime;
+    ATResponse* p_response = NULL;
+    RIL_Errno ril_err = RIL_E_SUCCESS;
+    RIL_ActivityStatsInfo stats = { 0 };
+    int temp = 0;
+    char* line = NULL;
+    int err = -1;
 
-    RIL_onRequestComplete(t, RIL_E_SUCCESS, &stats, sizeof(stats));
+    // respinse: +GETACTIVITYINFO: <sleep_mode_time>,<idle_mode_time>,<tx_mode_time_1>,
+    //                             <tx_mode_time_2>,<tx_mode_time_3>,
+    //                             <tx_mode_time_4>,<tx_mode_time_5>,<rx_mode_time>
+    err = at_send_command_singleline("AT+GETACTIVITYINFO", "+GETACTIVITYINFO:", &p_response);
+    if (err != AT_ERROR_OK || !p_response || p_response->success != AT_OK) {
+        RLOGE("Failure occurred in sending %s due to: %s", "AT+GETACTIVITYINFO", at_io_err_str(err));
+        ril_err = RIL_E_GENERIC_FAILURE;
+        goto on_exit;
+    }
+
+    line = p_response->p_intermediates->line;
+    if (!line) {
+        RLOGE("Received empty line in %s", __func__);
+        ril_err = RIL_E_GENERIC_FAILURE;
+        goto on_exit;
+    }
+
+    err = at_tok_start(&line);
+    if (err < 0) {
+        RLOGE("Failed to parse line in %s", __func__);
+        ril_err = RIL_E_GENERIC_FAILURE;
+        goto on_exit;
+    }
+
+    err = at_tok_nextint(&line, &temp);
+    if (err < 0) {
+        RLOGE("Failed to parse sleep_mode_time_ms in %s", __func__);
+        ril_err = RIL_E_GENERIC_FAILURE;
+        goto on_exit;
+    }
+    stats.sleep_mode_time_ms = (uint32_t)temp;
+
+    err = at_tok_nextint(&line, &temp);
+    if (err < 0) {
+        RLOGE("Failed to parse idle_mode_time in %s", __func__);
+        ril_err = RIL_E_GENERIC_FAILURE;
+        goto on_exit;
+    }
+    stats.idle_mode_time_ms = (uint32_t)temp;
+
+    for (int i = 0; i < RIL_NUM_TX_POWER_LEVELS; i++) {
+        err = at_tok_nextint(&line, &temp);
+        if (err < 0) {
+            RLOGE("Failed to parse tx_mode_time_%d in %s", i, __func__);
+            ril_err = RIL_E_GENERIC_FAILURE;
+            goto on_exit;
+        }
+
+        stats.tx_mode_time_ms[i] = (uint32_t)temp;
+    }
+
+    err = at_tok_nextint(&line, &temp);
+    if (err < 0) {
+        RLOGE("Failed to parse rx_mode_time in %s", __func__);
+        ril_err = RIL_E_GENERIC_FAILURE;
+        goto on_exit;
+    }
+    stats.rx_mode_time_ms = (uint32_t)temp;
+
+on_exit:
+    RIL_onRequestComplete(t, ril_err, ril_err == RIL_E_SUCCESS ? &stats : NULL,
+        ril_err == RIL_E_SUCCESS ? sizeof(stats) : 0);
+    at_response_free(p_response);
 }
 
 static void requestGetIMEI(void* data, size_t datalen, RIL_Token t)
