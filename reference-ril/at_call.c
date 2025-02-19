@@ -518,17 +518,9 @@ static void requestEccDial(void* data, size_t datalen, RIL_Token t)
         break;
     }
 
-    if (p_eccDial->routing == ROUTING_MERGENCY || p_eccDial->routing == ROUTING_UNKNOWN) {
-        if (p_eccDial->categories == CATEGORY_UNSPECIFIED) {
-            snprintf(cmd, sizeof(cmd), "ATD%s@,#%s;", p_eccDial->dialInfo.address, clir);
-        } else {
-            snprintf(cmd, sizeof(cmd), "ATD%s@%d,#%s;", p_eccDial->dialInfo.address,
-                p_eccDial->categories, clir);
-        }
-    } else { // ROUTING_NORMAL
-        snprintf(cmd, sizeof(cmd), "ATD%s%s;", p_eccDial->dialInfo.address, clir);
-    }
-
+    // In the goldfish emulator, the modem_simulator handles emergency calls
+    // using the AT command format: ATD<number>@[category],#[clir];
+    snprintf(cmd, sizeof(cmd), "ATD%s@,#%s;", p_eccDial->dialInfo.address, clir);
     err = at_send_command(cmd, &p_response);
     if (err != AT_ERROR_OK || !p_response || p_response->success != AT_OK) {
         RLOGE("Failure occurred in sending %s due to: %s", cmd, at_io_err_str(err));
