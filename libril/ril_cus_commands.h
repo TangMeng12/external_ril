@@ -16,4 +16,4 @@
 */
 { 0, NULL, NULL }, // none
                    // 2000
-    { RIL_REQUEST_SET_EMERGENCY_NUMBER, NULL, NULL },
+    { RIL_REQUEST_SET_EMERGENCY_NUMBER, dispatchEccNumbers, responseVoid },

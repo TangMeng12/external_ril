@@ -139,6 +139,7 @@ static inline req_category_t request2eventtype(int request)
     case RIL_REQUEST_EMERGENCY_DIAL:
     case RIL_REQUEST_ADD_PARTICIPANT:
     case RIL_REQUEST_DIAL_CONFERENCE:
+    case RIL_REQUEST_SET_EMERGENCY_NUMBER:
         type = REQ_CALL_TYPE;
         break;
     case RIL_REQUEST_ENTER_NETWORK_DEPERSONALIZATION:
@@ -613,7 +614,8 @@ static void onRequest(int request, void* data, size_t datalen, RIL_Token t)
     if (getRadioState() == RADIO_STATE_UNAVAILABLE
         && request != RIL_REQUEST_GET_SIM_STATUS
         && request != RIL_REQUEST_ENABLE_MODEM
-        && request != RIL_REQUEST_GET_MODEM_STATUS) {
+        && request != RIL_REQUEST_GET_MODEM_STATUS
+        && request != RIL_REQUEST_SET_EMERGENCY_NUMBER) {
         RLOGE("Radio unavailable");
         RIL_onRequestComplete(t, RIL_E_RADIO_NOT_AVAILABLE, NULL, 0);
         return;
