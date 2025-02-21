@@ -235,6 +235,7 @@ static void dispatchGsmBrSmsCnf(Parcel& p, RequestInfo* pRI);
 static void dispatchDataProfile(Parcel& p, RequestInfo* pRI);
 static void dispatchManualSelection(Parcel& p, RequestInfo* pRI);
 static void dispatchConferenceInvite(Parcel& p, RequestInfo* pRI);
+static void dispatchEccNumbers(Parcel& p, RequestInfo* pRI);
 static int responseInts(Parcel& p, void* response, size_t responselen);
 static int responseStrings(Parcel& p, void* response, size_t responselen);
 static int responseString(Parcel& p, void* response, size_t responselen);
@@ -1468,6 +1469,74 @@ static void dispatchConferenceInvite(Parcel& p, RequestInfo* pRI)
 invalid:
     invalidCommandBlock(pRI);
     return;
+}
+
+static void dispatchEccNumbers(Parcel& p, RequestInfo* pRI)
+{
+    RIL_EmergencyInfo eccInfos = { 0 };
+    int32_t t;
+    status_t status;
+    status_t ret;
+
+    startRequest;
+    status = p.readInt32(&t);
+    if (status != NO_ERROR || t < 0) {
+        goto invalid;
+    }
+    eccInfos.count = (int)t;
+
+    ret = NO_ERROR;
+    eccInfos.numbers = (RIL_EmergencyNumber*)calloc(eccInfos.count, sizeof(RIL_EmergencyNumber));
+    for (int i = 0; i < eccInfos.count; i++) {
+        eccInfos.numbers[i].eccNumber = strdupReadString(p);
+
+        status = p.readInt32(&t);
+        eccInfos.numbers[i].category = (RIL_EmergencyServiceCategory)t;
+        if (status != NO_ERROR) {
+            ret = status;
+        }
+
+        status = p.readInt32(&t);
+        eccInfos.numbers[i].condition = (RIL_EccType)t;
+        if (status != NO_ERROR) {
+            ret = status;
+        }
+    }
+
+    if (ret != NO_ERROR) {
+        for (int i = 0; i < eccInfos.count; i++)
+            free(eccInfos.numbers[i].eccNumber);
+        free(eccInfos.numbers);
+        goto invalid;
+    }
+
+    closeRequest;
+    printRequest(pRI->token, pRI->pCI->requestNumber);
+
+    s_callbacks.onRequest(pRI->pCI->requestNumber, &eccInfos, sizeof(eccInfos), pRI);
+
+#ifdef MEMSET_FREED
+    for (int i = 0; i < eccInfos.count; i++) {
+        memsetString(eccInfos.numbers[i].eccNumber);
+    }
+#endif
+
+    for (int i = 0; i < eccInfos.count; i++) {
+        free(eccInfos.numbers[i].eccNumber);
+        eccInfos.numbers[i].eccNumber = NULL;
+    }
+
+    free(eccInfos.numbers);
+    eccInfos.numbers = NULL;
+
+#ifdef MEMSET_FREED
+    memset(&eccInfos, 0, sizeof(eccInfos));
+#endif
+
+    return;
+
+invalid:
+    invalidCommandBlock(pRI);
 }
 
 static int blockingWrite(int fd, const void* buffer, size_t len)
@@ -3468,6 +3537,8 @@ extern "C" const char* requestToString(int request)
         return "IMS_SET_SERVICE_STATUS";
     case RIL_REQUEST_DIAL_CONFERENCE:
         return "DIAL_CONFERENCE";
+    case RIL_REQUEST_SET_EMERGENCY_NUMBER:
+        return "SET_EMERGENCY_NUMBER";
     case RIL_UNSOL_RESPONSE_RADIO_STATE_CHANGED:
         return "UNSOL_RESPONSE_RADIO_STATE_CHANGED";
     case RIL_UNSOL_RESPONSE_CALL_STATE_CHANGED:

@@ -1624,6 +1624,24 @@ typedef struct {
     bool fromEmergencyDialer;
 } RIL_EmergencyDial;
 
+typedef enum {
+    RIL_ABSENT_ECC = 0, /* emergency call when card absent, not emergency call when card present */
+    RIL_REAL_ECC, /* real emergency call regardless of card present or card absent */
+    RIL_FAKE_ECC, /* fake emergency call when card present, real emergency call when card absent */
+    RIL_READY_ECC /* emergency call card present, not emergency call when card absent */
+} RIL_EccType;
+
+typedef struct {
+    char* eccNumber;
+    RIL_EmergencyServiceCategory category;
+    RIL_EccType condition;
+} RIL_EmergencyNumber;
+
+typedef struct {
+    int count;
+    RIL_EmergencyNumber* numbers;
+} RIL_EmergencyInfo;
+
 /******************************************************************************/
 /* Radio Config structure @{ */
 typedef enum {
