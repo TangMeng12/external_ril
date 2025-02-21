@@ -536,6 +536,47 @@ error:
     at_response_free(p_response);
 }
 
+static void requestSetEmergencyNumbers(void* data, size_t datalen, RIL_Token t)
+{
+    ATResponse* p_response = NULL;
+    RIL_EmergencyInfo* ecc_info = NULL;
+    RIL_Errno ril_err = RIL_E_SUCCESS;
+    char cmd[512] = { 0 };
+    int n = 0;
+    int err = -1;
+
+    if (data == NULL) {
+        RLOGE("requestSetEmergencyNumbers: data is null!");
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+        return;
+    }
+
+    ecc_info = (RIL_EmergencyInfo*)data;
+    n = ecc_info->count;
+    if (n == 0) {
+        snprintf(cmd, sizeof(cmd), "AT+EMERGENCYNUM=0");
+    } else {
+        snprintf(cmd, sizeof(cmd), "AT+EMERGENCYNUM=%d,", n);
+        for (int i = 0; i < n; i++) {
+            snprintf(cmd + strlen(cmd), sizeof(cmd) - strlen(cmd), "%s,%d,%d,",
+                ecc_info->numbers[i].eccNumber, ecc_info->numbers[i].category,
+                ecc_info->numbers[i].condition);
+        }
+    }
+
+    err = at_send_command(cmd, &p_response);
+    if (err < 0 || !p_response || p_response->success != AT_OK) {
+        RLOGE("Failure occurred in sending %s due to: %s", cmd, at_io_err_str(err));
+        ril_err = RIL_E_GENERIC_FAILURE;
+        goto on_exit;
+    }
+
+on_exit:
+    RIL_onRequestComplete(t, ril_err, NULL, 0);
+    at_response_free(p_response);
+    p_response = NULL;
+}
+
 static void requestHandleConference(int request, void* data, size_t datalen, RIL_Token t)
 {
     (void)datalen;
@@ -1476,6 +1517,8 @@ void on_request_call(int request, void* data, size_t datalen, RIL_Token t)
     case RIL_REQUEST_DIAL_CONFERENCE:
         requestHandleConference(request, data, datalen, t);
         break;
+    case RIL_REQUEST_SET_EMERGENCY_NUMBER:
+        requestSetEmergencyNumbers(data, datalen, t);
     default:
         RLOGE("Request not supported");
         RIL_onRequestComplete(t, RIL_E_REQUEST_NOT_SUPPORTED, NULL, 0);
