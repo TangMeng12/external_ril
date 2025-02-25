@@ -3601,6 +3601,8 @@ extern "C" const char* requestToString(int request)
         return "RESPONSE_IMS_NETWORK_STATE_CHANGED";
     case RIL_UNSOL_MODEM_RESTART:
         return "RIL_UNSOL_MODEM_RESTART";
+    case RIL_UNSOL_EMERGENCY_NUMBER_LIST:
+        return "RIL_UNSOL_EMERGENCY_NUMBER_LIST";
     default:
         return "<unknown request>";
     }
