@@ -33,6 +33,7 @@
 
 #define MAX_PARTICIPANTS 5
 #define MAX_TEL_DIGITS 15
+#define MAX_ECC_COUNT 50
 
 static int clccStateToRILState(int state, RIL_CallState* p_state)
 {
@@ -700,6 +701,43 @@ static void unsolicitedSuppSvcNotification(int notificationType,
     }
 
     RIL_onUnsolicitedResponse(RIL_UNSOL_SUPP_SVC_NOTIFICATION, &response, sizeof(RIL_SuppSvcNotification));
+}
+
+static void unsolicitedEccListChanged(const char* s)
+{
+    char* ecc_list[MAX_ECC_COUNT] = { NULL };
+    int count = 0;
+    char *line = NULL, *p = NULL;
+
+    line = p = strdup(s);
+    if (!line) {
+        RLOGE("+ECCL: Unable to allocate memory");
+        free(line);
+        return;
+    }
+
+    if (at_tok_start(&p) < 0) {
+        RLOGE("%s: invalid response string", __func__);
+        free(line);
+        return;
+    }
+
+    if (at_tok_nextint(&p, &count) < 0) {
+        RLOGE("invalid ecc list count");
+        free(line);
+        return;
+    }
+
+    for (int i = 0; i < count; i++) {
+        if (at_tok_nextstr(&p, &ecc_list[i]) < 0) {
+            RLOGE("invalid ecc_number[%d]", i);
+            free(line);
+            return;
+        }
+    }
+
+    RIL_onUnsolicitedResponse(RIL_UNSOL_EMERGENCY_NUMBER_LIST, ecc_list, count * sizeof(char*));
+    free(line);
 }
 
 static void requestChangeBarringPassword(char** data, size_t datalen, RIL_Token t)
@@ -1583,6 +1621,10 @@ bool try_handle_unsol_call(const char* s)
         unsol = state ? RIL_UNSOL_ENTER_EMERGENCY_CALLBACK_MODE : RIL_UNSOL_EXIT_EMERGENCY_CALLBACK_MODE;
 
         RIL_onUnsolicitedResponse(unsol, NULL, 0);
+        ret = true;
+    } else if (strStartsWith(s, "+ECCL: ")) {
+        RLOGI("Receive emergency number list URC");
+        unsolicitedEccListChanged(s);
         ret = true;
     } else {
         RLOGD("Can't match any unsol call handlers");
