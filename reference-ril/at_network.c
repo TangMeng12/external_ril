@@ -110,7 +110,6 @@ static int32_t net2pmask[] = {
     MDM_NR | MDM_LTE | MDM_TDSCDMA | MDM_CDMA | MDM_EVDO | MDM_WCDMA | MDM_GSM, // 33 - NR 5G, LTE, TD-SCDMA, CDMA, EVDO, GSM and WCDMA
 };
 
-static int s_cell_info_rate_ms = INT_MAX;
 static int s_lac = 0;
 static int s_cid = 0;
 
@@ -646,12 +645,51 @@ static void requestSetCellInfoListRate(void* data, size_t datalen, RIL_Token t)
 {
     (void)datalen;
 
-    // For now we'll save the rate but no RIL_UNSOL_CELL_INFO_LIST messages
-    // will be sent.
-    assert(datalen == sizeof(int));
-    s_cell_info_rate_ms = ((int*)data)[0];
+    ATResponse* p_response = NULL;
+    RIL_Errno ril_err = RIL_E_SUCCESS;
+    char* cmd = NULL;
+    int err = -1;
+    int rate;
 
-    RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
+    if (data == NULL) {
+        RLOGE("%s: Data is NULL", __func__);
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+        return;
+    }
+
+    assert(datalen == sizeof(int*));
+    rate = ((int*)data)[0];
+
+    if (rate < 5) {
+        RLOGE("%s: Rate %d(s) is too low, minimum is 5(s). May impact battery and performance.", __func__, rate);
+        RIL_onRequestComplete(t, RIL_E_INVALID_ARGUMENTS, NULL, 0);
+        return;
+    }
+
+    if (asprintf(&cmd, "AT+CELLINFORATE=%d", rate) < 0) {
+        RLOGE("%s: Failed to allocate memory.", __func__);
+        ril_err = RIL_E_NO_MEMORY;
+        goto on_exit;
+    }
+
+    err = at_send_command(cmd, &p_response);
+    if (err != AT_ERROR_OK) {
+        RLOGE("%s: Failure occurred in sending %s due to: %s", __func__, cmd, at_io_err_str(err));
+        ril_err = RIL_E_GENERIC_FAILURE;
+        goto on_exit;
+    }
+
+    if (!p_response || p_response->success != AT_OK) {
+        RLOGE("%s: ATResponse (%p) is invalid, the final response from %s is %s", __func__,
+            p_response, cmd, p_response ? p_response->finalResponse : "null");
+        ril_err = RIL_E_GENERIC_FAILURE;
+        goto on_exit;
+    }
+
+on_exit:
+    RIL_onRequestComplete(t, ril_err, NULL, 0);
+    at_response_free(p_response);
+    free(cmd);
 }
 
 static int get_lte_cell_info_from_response(char* line, RIL_CellInfo_v12* info)
