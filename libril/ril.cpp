@@ -2679,7 +2679,7 @@ static void processWakeupCallback(int fd, short flags, void* param)
 
 static void onCommandsSocketClosed(void)
 {
-    int ret = 0;
+    int ret;
     RequestInfo* p_cur;
 
     (void)ret;
