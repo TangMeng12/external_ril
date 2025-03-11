@@ -582,7 +582,9 @@ static void dispatchInts(Parcel& p, RequestInfo* pRI)
 #ifdef MEMSET_FREED
     memset(pInts, 0, datalen);
 #endif
+
     free(pInts);
+
     return;
 
 invalid:
@@ -1064,7 +1066,6 @@ static void dispatchRaw(Parcel& p, RequestInfo* pRI)
 
     RLOGD("dispatchRaw");
     status = p.readInt32(&len);
-
     if (status != NO_ERROR) {
         goto invalid;
     }
@@ -1085,9 +1086,9 @@ static void dispatchRaw(Parcel& p, RequestInfo* pRI)
     s_callbacks.onRequest(pRI->pCI->requestNumber, const_cast<void*>(data), len, pRI);
 
     return;
+
 invalid:
     invalidCommandBlock(pRI);
-    return;
 }
 
 static void dispatchImsGsmSms(Parcel& p, RequestInfo* pRI, uint8_t retry,
@@ -1101,8 +1102,8 @@ static void dispatchImsGsmSms(Parcel& p, RequestInfo* pRI, uint8_t retry,
     RLOGD("dispatchImsGsmSms: retry=%d, messageRef=%ld", retry, messageRef);
 
     status = p.readInt32(&countStrings);
-
     if (status != NO_ERROR) {
+        RLOGE("%s: Failed to read countStrings.", __func__);
         goto invalid;
     }
 
@@ -1118,7 +1119,7 @@ static void dispatchImsGsmSms(Parcel& p, RequestInfo* pRI, uint8_t retry,
         // just some non-null pointer
         pStrings = (char**)calloc(1, sizeof(char*));
         if (pStrings == NULL) {
-            RLOGE("Memory allocation failed for request %s",
+            RLOGE("%s: Memory allocation failed for request %s", __func__,
                 requestToString(pRI->pCI->requestNumber));
             closeRequest;
             return;
@@ -1138,7 +1139,7 @@ static void dispatchImsGsmSms(Parcel& p, RequestInfo* pRI, uint8_t retry,
 
         pStrings = (char**)calloc(countStrings, sizeof(char*));
         if (pStrings == NULL) {
-            RLOGE("Memory allocation failed for request %s",
+            RLOGE("%s: Memory allocation failed for request %s", __func__,
                 requestToString(pRI->pCI->requestNumber));
             closeRequest;
             return;
@@ -1155,8 +1156,7 @@ static void dispatchImsGsmSms(Parcel& p, RequestInfo* pRI, uint8_t retry,
 
     rism.message.gsmMessage = pStrings;
     s_callbacks.onRequest(pRI->pCI->requestNumber, &rism,
-        sizeof(RIL_RadioTechnologyFamily) + sizeof(uint8_t) + sizeof(int32_t) + datalen,
-        pRI);
+        sizeof(RIL_RadioTechnologyFamily) + sizeof(uint8_t) + sizeof(int32_t) + datalen, pRI);
 
     if (pStrings != NULL) {
         for (int i = 0; i < countStrings; i++) {
@@ -1175,11 +1175,12 @@ static void dispatchImsGsmSms(Parcel& p, RequestInfo* pRI, uint8_t retry,
 #ifdef MEMSET_FREED
     memset(&rism, 0, sizeof(rism));
 #endif
+
     return;
+
 invalid:
     RLOGE("dispatchImsGsmSms invalid block");
     invalidCommandBlock(pRI);
-    return;
 }
 
 static void dispatchImsSms(Parcel& p, RequestInfo* pRI)
@@ -1192,6 +1193,7 @@ static void dispatchImsSms(Parcel& p, RequestInfo* pRI)
 
     RLOGD("dispatchImsSms");
     if (status != NO_ERROR) {
+        RLOGE("%s: Failed to read format.", __func__);
         goto invalid;
     }
     format = (RIL_RadioTechnologyFamily)t;
@@ -1199,11 +1201,14 @@ static void dispatchImsSms(Parcel& p, RequestInfo* pRI)
     // read retry field
     status = p.read(&retry, sizeof(retry));
     if (status != NO_ERROR) {
+        RLOGE("%s: Failed to read retry", __func__);
         goto invalid;
     }
+
     // read messageRef field
     status = p.read(&messageRef, sizeof(messageRef));
     if (status != NO_ERROR) {
+        RLOGE("%s: Failed to read messageRef", __func__);
         goto invalid;
     }
 
@@ -1217,7 +1222,6 @@ static void dispatchImsSms(Parcel& p, RequestInfo* pRI)
 
 invalid:
     invalidCommandBlock(pRI);
-    return;
 }
 
 static void dispatchGsmBrSmsCnf(Parcel& p, RequestInfo* pRI)
@@ -1228,6 +1232,7 @@ static void dispatchGsmBrSmsCnf(Parcel& p, RequestInfo* pRI)
 
     status = p.readInt32(&num);
     if (status != NO_ERROR) {
+        RLOGE("%s: Failed to read num", __func__);
         goto invalid;
     }
 
@@ -1240,18 +1245,38 @@ static void dispatchGsmBrSmsCnf(Parcel& p, RequestInfo* pRI)
             gsmBciPtrs[i] = &gsmBci[i];
 
             status = p.readInt32(&t);
+            if (status != NO_ERROR) {
+                RLOGE("%s: Failed to read fromServiceId", __func__);
+                goto invalid;
+            }
             gsmBci[i].fromServiceId = (int)t;
 
             status = p.readInt32(&t);
+            if (status != NO_ERROR) {
+                RLOGE("%s: Failed to read toServiceId", __func__);
+                goto invalid;
+            }
             gsmBci[i].toServiceId = (int)t;
 
             status = p.readInt32(&t);
+            if (status != NO_ERROR) {
+                RLOGE("%s: Failed to read fromCodeScheme", __func__);
+                goto invalid;
+            }
             gsmBci[i].fromCodeScheme = (int)t;
 
             status = p.readInt32(&t);
+            if (status != NO_ERROR) {
+                RLOGE("%s: Failed to read toCodeScheme", __func__);
+                goto invalid;
+            }
             gsmBci[i].toCodeScheme = (int)t;
 
             status = p.readInt32(&t);
+            if (status != NO_ERROR) {
+                RLOGE("%s: Failed to read selected", __func__);
+                goto invalid;
+            }
             gsmBci[i].selected = (uint8_t)t;
 
             appendPrintBuf("%s [%d: fromServiceId=%d, toServiceId =%d, \
@@ -1262,10 +1287,6 @@ static void dispatchGsmBrSmsCnf(Parcel& p, RequestInfo* pRI)
                 gsmBci[i].selected);
         }
         closeRequest;
-
-        if (status != NO_ERROR) {
-            goto invalid;
-        }
 
         s_callbacks.onRequest(pRI->pCI->requestNumber,
             gsmBciPtrs,
@@ -1282,7 +1303,6 @@ static void dispatchGsmBrSmsCnf(Parcel& p, RequestInfo* pRI)
 
 invalid:
     invalidCommandBlock(pRI);
-    return;
 }
 
 // For backwards compatibility in RIL_REQUEST_SETUP_DATA_CALL.
@@ -1297,12 +1317,26 @@ static void dispatchDataCall(Parcel& p, RequestInfo* pRI)
     // The first bytes of the RIL parcel contain the request number and the
     // serial number - see processCommandBuffer(). Copy them over too.
     int pos = p.dataPosition();
+    if (p.dataAvail() < sizeof(int32_t)) {
+        RLOGE("%s: Parcel data insufficient for reading numParams.", __func__);
+        return;
+    }
 
     int numParams = p.readInt32();
     if (s_callbacks.version < 4 && numParams > numParamsRilV3) {
         Parcel p2;
-        p2.appendFrom(&p, 0, pos);
-        p2.writeInt32(numParamsRilV3);
+
+        if (p2.appendFrom(&p, 0, p.dataSize()) != NO_ERROR) {
+            RLOGE("%s: Failed to append data to p2.", __func__);
+            return;
+        }
+
+        p2.setDataPosition(pos);
+        if (p2.writeInt32(numParamsRilV3) != NO_ERROR) {
+            RLOGE("%s: Failed to write numParamsRilV3 to p2", __func__);
+            return;
+        }
+
         p2.setDataPosition(pos);
         dispatchStrings(p2, pRI);
     } else {
@@ -1320,6 +1354,7 @@ static void dispatchVoiceRadioTech(Parcel& p, RequestInfo* pRI)
 
     if ((RADIO_STATE_UNAVAILABLE == state) || (RADIO_STATE_OFF == state)) {
         RIL_onRequestComplete(pRI, RIL_E_RADIO_NOT_AVAILABLE, NULL, 0);
+        return;
     }
 
     // RILs that support RADIO_STATE_ON should support this request.
@@ -1384,9 +1419,9 @@ static void dispatchSetInitialAttachApn(Parcel& p, RequestInfo* pRI)
 #endif
 
     return;
+
 invalid:
     invalidCommandBlock(pRI);
-    return;
 }
 
 static void dispatchManualSelection(Parcel& p, RequestInfo* pRI)
@@ -1399,18 +1434,23 @@ static void dispatchManualSelection(Parcel& p, RequestInfo* pRI)
     memset(&op, 0, sizeof(op));
 
     op.operatorNumeric = strdupReadString(p);
+    if (op.operatorNumeric == NULL) {
+        RLOGE("%s: Failed to read operatorNumeric.", __func__);
+        goto invalid;
+    }
 
     status = p.readInt32(&t);
+    if (status != NO_ERROR) {
+        RLOGE("%s: Failed to read act.", __func__);
+        free(op.operatorNumeric);
+        goto invalid;
+    }
     op.act = (RIL_RadioAccessNetworks)t;
 
     startRequest;
     appendPrintBuf("op=%s,act=%d", op.operatorNumeric, op.act);
     closeRequest;
     printRequest(pRI->token, pRI->pCI->requestNumber);
-
-    if (status != NO_ERROR) {
-        goto invalid;
-    }
 
     s_callbacks.onRequest(pRI->pCI->requestNumber, &op, sizeof(RIL_NetworkOperator), pRI);
 
@@ -1424,9 +1464,9 @@ static void dispatchManualSelection(Parcel& p, RequestInfo* pRI)
 #endif
 
     return;
+
 invalid:
     invalidCommandBlock(pRI);
-    return;
 }
 
 static void dispatchDataProfile(Parcel& p, RequestInfo* pRI)
@@ -1434,99 +1474,163 @@ static void dispatchDataProfile(Parcel& p, RequestInfo* pRI)
     int32_t t;
     status_t status;
     int32_t num;
+    int index;
+    RIL_DataProfileInfo* dataProfiles;
+    RIL_DataProfileInfo** dataProfilePtrs;
 
     status = p.readInt32(&num);
     if (status != NO_ERROR || num < 0) {
+        RLOGE("%s: Failed to read num.", __func__);
         goto invalid;
     }
 
-    {
-        RIL_DataProfileInfo* dataProfiles = (RIL_DataProfileInfo*)calloc(num, sizeof(RIL_DataProfileInfo));
-        if (dataProfiles == NULL) {
-            RLOGE("Memory allocation failed for request %s",
-                requestToString(pRI->pCI->requestNumber));
-            return;
-        }
-        RIL_DataProfileInfo** dataProfilePtrs = (RIL_DataProfileInfo**)calloc(num, sizeof(RIL_DataProfileInfo*));
-        if (dataProfilePtrs == NULL) {
-            RLOGE("Memory allocation failed for request %s",
-                requestToString(pRI->pCI->requestNumber));
-            free(dataProfiles);
-            return;
-        }
-
-        startRequest;
-        for (int i = 0; i < num; i++) {
-            dataProfilePtrs[i] = &dataProfiles[i];
-
-            status = p.readInt32(&t);
-            dataProfiles[i].profileId = (int)t;
-
-            dataProfiles[i].apn = strdupReadString(p);
-            dataProfiles[i].protocol = strdupReadString(p);
-            status = p.readInt32(&t);
-            dataProfiles[i].authType = (int)t;
-
-            dataProfiles[i].user = strdupReadString(p);
-            dataProfiles[i].password = strdupReadString(p);
-
-            status = p.readInt32(&t);
-            dataProfiles[i].type = (int)t;
-
-            status = p.readInt32(&t);
-            dataProfiles[i].maxConnsTime = (int)t;
-            status = p.readInt32(&t);
-            dataProfiles[i].maxConns = (int)t;
-            status = p.readInt32(&t);
-            dataProfiles[i].waitTime = (int)t;
-
-            status = p.readInt32(&t);
-            dataProfiles[i].enabled = (int)t;
-
-            appendPrintBuf("%s [%d: profileId=%d, apn =%s, protocol =%s, authType =%d, \
-                    user =%s, password =%s, type =%d, maxConnsTime =%d, maxConns =%d, \
-                    waitTime =%d, enabled =%d]",
-                printBuf, i, dataProfiles[i].profileId,
-                dataProfiles[i].apn, dataProfiles[i].protocol, dataProfiles[i].authType,
-                dataProfiles[i].user, dataProfiles[i].password, dataProfiles[i].type,
-                dataProfiles[i].maxConnsTime, dataProfiles[i].maxConns,
-                dataProfiles[i].waitTime, dataProfiles[i].enabled);
-        }
-        closeRequest;
-        printRequest(pRI->token, pRI->pCI->requestNumber);
-        clearPrintBuf;
-        if (status != NO_ERROR) {
-            for (int i = 0; i < num; i++) {
-                free(dataProfiles[i].apn);
-                free(dataProfiles[i].protocol);
-                free(dataProfiles[i].user);
-                free(dataProfiles[i].password);
-            }
-            free(dataProfiles);
-            free(dataProfilePtrs);
-            goto invalid;
-        }
-
-        s_callbacks.onRequest(pRI->pCI->requestNumber,
-            dataProfilePtrs,
-            num * sizeof(RIL_DataProfileInfo*),
-            pRI);
-
-#ifdef MEMSET_FREED
-        memset(dataProfiles, 0, num * sizeof(RIL_DataProfileInfo));
-        memset(dataProfilePtrs, 0, num * sizeof(RIL_DataProfileInfo*));
-#endif
-        for (int i = 0; i < num; i++) {
-            free(dataProfiles[i].apn);
-            free(dataProfiles[i].protocol);
-            free(dataProfiles[i].user);
-            free(dataProfiles[i].password);
-        }
-        free(dataProfiles);
-        free(dataProfilePtrs);
+    dataProfiles = (RIL_DataProfileInfo*)calloc(num, sizeof(RIL_DataProfileInfo));
+    if (dataProfiles == NULL) {
+        RLOGE("%s: Memory allocation failed for request %s", __func__,
+            requestToString(pRI->pCI->requestNumber));
+        return;
     }
 
+    dataProfilePtrs = (RIL_DataProfileInfo**)calloc(num, sizeof(RIL_DataProfileInfo*));
+    if (dataProfilePtrs == NULL) {
+        RLOGE("%s: Memory allocation failed for request %s", __func__,
+            requestToString(pRI->pCI->requestNumber));
+        free(dataProfiles);
+        return;
+    }
+
+    startRequest;
+    index = 0;
+    for (int i = 0; i < num; i++) {
+        dataProfilePtrs[i] = &dataProfiles[i];
+
+        status = p.readInt32(&t);
+        if (status != NO_ERROR) {
+            RLOGE("%s: Index (%d) failed to read profileId.", __func__, i);
+            index = i;
+            goto cleanup;
+        }
+        dataProfiles[i].profileId = (int)t;
+
+        dataProfiles[i].apn = strdupReadString(p);
+        if (dataProfiles[i].apn == NULL) {
+            RLOGE("%s: Index (%d) failed to read apn.", __func__, i);
+            index = i;
+            goto cleanup;
+        }
+
+        dataProfiles[i].protocol = strdupReadString(p);
+        if (dataProfiles[i].protocol == NULL) {
+            RLOGE("%s: Index (%d) failed to read protocol.", __func__, i);
+            index = i;
+            goto cleanup;
+        }
+
+        status = p.readInt32(&t);
+        if (status != NO_ERROR) {
+            RLOGE("%s: Index (%d) failed to read authType.", __func__, i);
+            index = i;
+            goto cleanup;
+        }
+        dataProfiles[i].authType = (int)t;
+
+        dataProfiles[i].user = strdupReadString(p);
+        if (dataProfiles[i].user == NULL) {
+            RLOGE("%s: Index (%d) failed to read user.", __func__, i);
+            index = i;
+            goto cleanup;
+        }
+
+        dataProfiles[i].password = strdupReadString(p);
+        if (dataProfiles[i].password == NULL) {
+            RLOGE("%s: Index (%d) failed to read password.", __func__, i);
+            index = i;
+            goto cleanup;
+        }
+
+        status = p.readInt32(&t);
+        if (status != NO_ERROR) {
+            RLOGE("%s: Index (%d) failed to read type.", __func__, i);
+            index = i;
+            goto cleanup;
+        }
+        dataProfiles[i].type = (int)t;
+
+        status = p.readInt32(&t);
+        if (status != NO_ERROR) {
+            RLOGE("%s: Index (%d) failed to read maxConnsTime.", __func__, i);
+            index = i;
+            goto cleanup;
+        }
+        dataProfiles[i].maxConnsTime = (int)t;
+
+        status = p.readInt32(&t);
+        if (status != NO_ERROR) {
+            RLOGE("%s: Index (%d) failed to read maxConns.", __func__, i);
+            index = i;
+            goto cleanup;
+        }
+        dataProfiles[i].maxConns = (int)t;
+
+        status = p.readInt32(&t);
+        if (status != NO_ERROR) {
+            RLOGE("%s: Index (%d) failed to read waitTime.", __func__, i);
+            index = i;
+            goto cleanup;
+        }
+        dataProfiles[i].waitTime = (int)t;
+
+        status = p.readInt32(&t);
+        if (status != NO_ERROR) {
+            RLOGE("%s: Index (%d) failed to read enabled.", __func__, i);
+            index = i;
+            goto cleanup;
+        }
+        dataProfiles[i].enabled = (int)t;
+
+        appendPrintBuf("%s [%d: profileId=%d, apn =%s, protocol =%s, authType =%d, \
+                user =%s, password =%s, type =%d, maxConnsTime =%d, maxConns =%d, \
+                waitTime =%d, enabled =%d]",
+            printBuf, i, dataProfiles[i].profileId,
+            dataProfiles[i].apn, dataProfiles[i].protocol, dataProfiles[i].authType,
+            dataProfiles[i].user, dataProfiles[i].password, dataProfiles[i].type,
+            dataProfiles[i].maxConnsTime, dataProfiles[i].maxConns,
+            dataProfiles[i].waitTime, dataProfiles[i].enabled);
+    }
+    closeRequest;
+    printRequest(pRI->token, pRI->pCI->requestNumber);
+    clearPrintBuf;
+
+    s_callbacks.onRequest(pRI->pCI->requestNumber,
+        dataProfilePtrs,
+        num * sizeof(RIL_DataProfileInfo*),
+        pRI);
+
+#ifdef MEMSET_FREED
+    memset(dataProfiles, 0, num * sizeof(RIL_DataProfileInfo));
+    memset(dataProfilePtrs, 0, num * sizeof(RIL_DataProfileInfo*));
+#endif
+    for (int i = 0; i < num; i++) {
+        free(dataProfiles[i].apn);
+        free(dataProfiles[i].protocol);
+        free(dataProfiles[i].user);
+        free(dataProfiles[i].password);
+    }
+    free(dataProfiles);
+    free(dataProfilePtrs);
+
     return;
+
+cleanup:
+    for (int j = 0; j <= index; j++) {
+        free(dataProfiles[j].apn);
+        free(dataProfiles[j].protocol);
+        free(dataProfiles[j].user);
+        free(dataProfiles[j].password);
+    }
+    free(dataProfiles);
+    free(dataProfilePtrs);
+    goto invalid;
 
 invalid:
     invalidCommandBlock(pRI);
@@ -1543,15 +1647,15 @@ static void dispatchConferenceInvite(Parcel& p, RequestInfo* pRI)
     memset(&cinfo, 0, sizeof(RIL_ConferenceInvite));
 
     status = p.readInt32(&t);
-    cinfo.nparticipants = (int)t;
-
     if (status != NO_ERROR) {
+        RLOGE("%s: Failed to read nparticipants.", __func__);
         goto invalid;
     }
+    cinfo.nparticipants = (int)t;
 
     cinfo.numbers = strdupReadString(p);
-
     if (!cinfo.numbers) {
+        RLOGE("%s: Failed to read numbers.", __func__);
         goto invalid;
     }
 
@@ -1566,7 +1670,6 @@ static void dispatchConferenceInvite(Parcel& p, RequestInfo* pRI)
 
 invalid:
     invalidCommandBlock(pRI);
-    return;
 }
 
 static void dispatchEccNumbers(Parcel& p, RequestInfo* pRI)
@@ -1574,38 +1677,41 @@ static void dispatchEccNumbers(Parcel& p, RequestInfo* pRI)
     RIL_EmergencyInfo eccInfos = { 0 };
     int32_t t;
     status_t status;
-    status_t ret;
+    int index;
 
     startRequest;
     status = p.readInt32(&t);
     if (status != NO_ERROR || t < 0) {
+        RLOGE("%s: Failed to read count.", __func__);
         goto invalid;
     }
     eccInfos.count = (int)t;
 
-    ret = NO_ERROR;
+    index = 0;
     eccInfos.numbers = (RIL_EmergencyNumber*)calloc(eccInfos.count, sizeof(RIL_EmergencyNumber));
     for (int i = 0; i < eccInfos.count; i++) {
         eccInfos.numbers[i].eccNumber = strdupReadString(p);
+        if (eccInfos.numbers[i].eccNumber == NULL) {
+            RLOGE("%s: Index (%d) failed to read eccNumber.", __func__, i);
+            index = i;
+            goto cleanup;
+        }
 
         status = p.readInt32(&t);
+        if (status != NO_ERROR) {
+            RLOGE("%s: Index (%d) failed to read category.", __func__, i);
+            index = i;
+            goto cleanup;
+        }
         eccInfos.numbers[i].category = (RIL_EmergencyServiceCategory)t;
-        if (status != NO_ERROR) {
-            ret = status;
-        }
 
         status = p.readInt32(&t);
-        eccInfos.numbers[i].condition = (RIL_EccType)t;
         if (status != NO_ERROR) {
-            ret = status;
+            RLOGE("%s: Index (%d) failed to read condition.", __func__, i);
+            index = i;
+            goto cleanup;
         }
-    }
-
-    if (ret != NO_ERROR) {
-        for (int i = 0; i < eccInfos.count; i++)
-            free(eccInfos.numbers[i].eccNumber);
-        free(eccInfos.numbers);
-        goto invalid;
+        eccInfos.numbers[i].condition = (RIL_EccType)t;
     }
 
     closeRequest;
@@ -1633,6 +1739,11 @@ static void dispatchEccNumbers(Parcel& p, RequestInfo* pRI)
 
     return;
 
+cleanup:
+    for (int j = 0; j <= index; j++) {
+        free(eccInfos.numbers[j].eccNumber);
+    }
+
 invalid:
     invalidCommandBlock(pRI);
 }
@@ -1647,8 +1758,7 @@ static int blockingWrite(int fd, const void* buffer, size_t len)
     while (writeOffset < len) {
         ssize_t written;
         do {
-            written = write(fd, toWrite + writeOffset,
-                len - writeOffset);
+            written = write(fd, toWrite + writeOffset, len - writeOffset);
         } while (written < 0 && ((errno == EINTR) || (errno == EAGAIN)));
 
         if (written >= 0) {
@@ -2613,12 +2723,9 @@ static void processCommandsCallback(int fd, short flags, void* param)
         s_fdCommand = -1;
 
         ril_event_del(&s_commands_event);
-
         record_stream_free(p_rs);
-
         /* start listening for new connections again */
         rilEventAddWakeup(&s_listen_event);
-
         onCommandsSocketClosed();
     }
 }
@@ -2676,11 +2783,8 @@ static void listenCallback(int fd, short flags, void* param)
     RLOGI("new client connect");
     p_rs = record_stream_new(s_fdCommand, MAX_COMMAND_BYTES);
 
-    ril_event_set(&s_commands_event, s_fdCommand, 1,
-        processCommandsCallback, p_rs);
-
+    ril_event_set(&s_commands_event, s_fdCommand, 1, processCommandsCallback, p_rs);
     rilEventAddWakeup(&s_commands_event);
-
     onNewCommandConnect();
 }
 
@@ -2706,6 +2810,7 @@ static void eventLoop(void* param)
     RLOGE("error in event_loop_base errno: %d", errno);
     // kill self to restart on error
     kill(0, SIGKILL);
+
     return;
 }
 
@@ -2719,8 +2824,8 @@ extern "C" void RIL_startEventLoop(void)
         RLOGE("Failed to get socket '" SOCKET_NAME_RIL "'");
         exit(-1);
     }
-    s_tid_dispatch = pthread_self();
 
+    s_tid_dispatch = pthread_self();
     ret = listen(s_fdListen, 4);
 
     if (ret < 0) {
@@ -2741,12 +2846,10 @@ extern "C" void RIL_startEventLoop(void)
     RLOGD("start eventLoop PIPE SUCCESS");
 
     fcntl(s_fdWakeupRead, F_SETFL, O_NONBLOCK);
-    ril_event_set(&s_wakeupfd_event, s_fdWakeupRead, true,
-        processWakeupCallback, NULL);
+    ril_event_set(&s_wakeupfd_event, s_fdWakeupRead, true, processWakeupCallback, NULL);
 
     rilEventAddWakeup(&s_wakeupfd_event);
-    ril_event_set(&s_listen_event, s_fdListen, false,
-        listenCallback, NULL);
+    ril_event_set(&s_listen_event, s_fdListen, false, listenCallback, NULL);
     rilEventAddWakeup(&s_listen_event);
     eventLoop(NULL);
 }
@@ -2758,11 +2861,13 @@ extern "C" void RIL_register(const RIL_RadioFunctions* callbacks)
         RLOGE("RIL_register: RIL_RadioFunctions * null");
         return;
     }
+
     if (callbacks->version < RIL_VERSION_MIN) {
         RLOGE("RIL_register: version %d is to old, min version is %d",
             callbacks->version, RIL_VERSION_MIN);
         return;
     }
+
     if (callbacks->version > RIL_VERSION) {
         RLOGE("RIL_register: version %d is too new, max version is %d",
             callbacks->version, RIL_VERSION);
@@ -2777,10 +2882,8 @@ extern "C" void RIL_register(const RIL_RadioFunctions* callbacks)
         return;
     }
 
-    memcpy(&s_callbacks, callbacks, sizeof(RIL_RadioFunctions));
-
     s_registerCalled = 1;
-
+    memcpy(&s_callbacks, callbacks, sizeof(RIL_RadioFunctions));
     RLOGI("s_registerCalled flag set, %d", s_started);
 
     // Little self-check
@@ -2802,8 +2905,7 @@ extern "C" void RIL_register(const RIL_RadioFunctions* callbacks)
     }
 
     for (int i = 0; i < (int)NUM_ELEMS(s_unsolResponses); i++) {
-        assert(i + RIL_UNSOL_RESPONSE_BASE
-            == s_unsolResponses[i].requestNumber);
+        assert(i + RIL_UNSOL_RESPONSE_BASE == s_unsolResponses[i].requestNumber);
     }
 
     // start listen socket
@@ -3163,10 +3265,9 @@ static UserCallbackInfo* internalRequestTimedCallback(RIL_TimedCallback callback
     }
 
     ril_event_set(&(p_info->event), -1, false, userTimerCallback, p_info);
-
     ril_timer_add(&(p_info->event), &myRelativeTime);
-
     triggerEvLoop();
+
     return p_info;
 }
 
