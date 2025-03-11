@@ -163,8 +163,8 @@ extern "C" uint8_t* convertHexStringToBytes(void* response, size_t responseLen)
     if (bytes == NULL) {
         return NULL;
     }
-    uint8_t* hexString = (uint8_t*)response;
 
+    uint8_t* hexString = (uint8_t*)response;
     for (size_t i = 0; i < responseLen; i += 2) {
         uint8_t hexChar1 = hexCharToInt(hexString[i]);
         uint8_t hexChar2 = hexCharToInt(hexString[i + 1]);
@@ -173,6 +173,7 @@ extern "C" uint8_t* convertHexStringToBytes(void* response, size_t responseLen)
             free(bytes);
             return NULL;
         }
+
         bytes[i / 2] = ((hexChar1 << 4) | hexChar2);
     }
 
@@ -337,18 +338,21 @@ static int processCommandBuffer(void* buffer, size_t buflen)
     int32_t request;
     int32_t token;
     RequestInfo* pRI;
-    int ret = 0;
+    int ret;
 
     (void)ret;
-
     p.setData((uint8_t*)buffer, buflen);
 
     // status checked at end
     status = p.readInt32(&request);
-    status = p.readInt32(&token);
-
     if (status != NO_ERROR) {
-        RLOGE("invalid request block");
+        RLOGE("%s: Invalid request ID (%d)", __func__, (int)request);
+        return 0;
+    }
+
+    status = p.readInt32(&token);
+    if (status != NO_ERROR) {
+        RLOGE("%s: Invalid token (%d)", __func__, (int)token);
         return 0;
     }
 
@@ -361,19 +365,19 @@ static int processCommandBuffer(void* buffer, size_t buflen)
             && request <= RIL_CUS_REQUEST_BASE)
         || request >= RIL_CUS_REQUEST_BASE + (int32_t)NUM_ELEMS(s_cus_commands)) {
         Parcel pErr;
-        RLOGE("unsupported request code %ld token %ld", request, token);
-        // FIXME this should perhaps return a response
+
+        RLOGE("%s: Unsupported request code %d token %d", __func__, (int)request, (int)token);
         status = pErr.writeInt32(RESPONSE_SOLICITED);
         status = pErr.writeInt32(token);
         status = pErr.writeInt32(RIL_E_GENERIC_FAILURE);
 
         if (status != NO_ERROR) {
-            RLOGE("failed to construct error response parcel");
+            RLOGE("%s: Failed to construct error response parcel", __func__);
             return 0;
         }
 
         if (sendResponse(pErr) < 0) {
-            RLOGE("failed to send error response parcel");
+            RLOGE("%s: Failed to send error response parcel", __func__);
         }
 
         return 0;
@@ -381,7 +385,7 @@ static int processCommandBuffer(void* buffer, size_t buflen)
 
     pRI = (RequestInfo*)calloc(1, sizeof(RequestInfo));
     if (pRI == NULL) {
-        RLOGE("Memory allocation failed for request %s", requestToString(request));
+        RLOGE("%s: Memory allocation failed for request %s", __func__, requestToString(request));
         return 0;
     }
 
@@ -442,6 +446,7 @@ static void dispatchString(Parcel& p, RequestInfo* pRI)
 
     string8 = strdupReadString(p);
     if (!string8) {
+        RLOGE("%s: Failed to read string", __func__);
         invalidCommandBlock(pRI);
         return;
     }
@@ -471,7 +476,6 @@ static void dispatchStrings(Parcel& p, RequestInfo* pRI)
     char** pStrings;
 
     status = p.readInt32(&countStrings);
-
     if (status != NO_ERROR) {
         goto invalid;
     }
@@ -481,7 +485,7 @@ static void dispatchStrings(Parcel& p, RequestInfo* pRI)
         // just some non-null pointer
         pStrings = (char**)calloc(1, sizeof(char*));
         if (pStrings == NULL) {
-            RLOGE("Memory allocation failed for request %s",
+            RLOGE("%s: Memory allocation failed for request %s", __func__,
                 requestToString(pRI->pCI->requestNumber));
             closeRequest;
             return;
@@ -496,7 +500,7 @@ static void dispatchStrings(Parcel& p, RequestInfo* pRI)
 
         pStrings = (char**)calloc(countStrings, sizeof(char*));
         if (pStrings == NULL) {
-            RLOGE("Memory allocation failed for request %s",
+            RLOGE("%s: Memory allocation failed for request %s", __func__,
                 requestToString(pRI->pCI->requestNumber));
             closeRequest;
             return;
@@ -528,9 +532,9 @@ static void dispatchStrings(Parcel& p, RequestInfo* pRI)
     }
 
     return;
+
 invalid:
     invalidCommandBlock(pRI);
-    return;
 }
 
 /* Callee expects const int * */
@@ -550,7 +554,8 @@ static void dispatchInts(Parcel& p, RequestInfo* pRI)
     datalen = sizeof(int) * count;
     pInts = (int*)calloc(count, sizeof(int));
     if (pInts == NULL) {
-        RLOGE("Memory allocation failed for request %s", requestToString(pRI->pCI->requestNumber));
+        RLOGE("%s: Memory allocation failed for request %s", __func__,
+            requestToString(pRI->pCI->requestNumber));
         return;
     }
 
@@ -559,13 +564,13 @@ static void dispatchInts(Parcel& p, RequestInfo* pRI)
         int32_t t;
 
         status = p.readInt32(&t);
-        pInts[i] = (int)t;
-        appendPrintBuf("%s%d,", printBuf, t);
-
         if (status != NO_ERROR) {
             free(pInts);
             goto invalid;
         }
+
+        pInts[i] = (int)t;
+        appendPrintBuf("%s%d,", printBuf, t);
     }
     removeLastChar;
     closeRequest;
@@ -579,9 +584,9 @@ static void dispatchInts(Parcel& p, RequestInfo* pRI)
 #endif
     free(pInts);
     return;
+
 invalid:
     invalidCommandBlock(pRI);
-    return;
 }
 
 /**
@@ -600,15 +605,23 @@ static void dispatchSmsWrite(Parcel& p, RequestInfo* pRI)
     memset(&args, 0, sizeof(args));
 
     status = p.readInt32(&t);
+    if (status != NO_ERROR) {
+        goto invalid;
+    }
     args.status = (int)t;
 
     args.pdu = strdupReadString(p);
-
-    if (status != NO_ERROR || args.pdu == NULL) {
+    if (args.pdu == NULL) {
+        RLOGE("%s: Failed to read pdu", __func__);
         goto invalid;
     }
 
     args.smsc = strdupReadString(p);
+    if (args.smsc == NULL) {
+        RLOGE("%s: Failed to read smsc", __func__);
+        free(args.pdu);
+        goto invalid;
+    }
 
     startRequest;
     appendPrintBuf("%s%d,%s,smsc=%s", printBuf, args.status,
@@ -620,18 +633,20 @@ static void dispatchSmsWrite(Parcel& p, RequestInfo* pRI)
 
 #ifdef MEMSET_FREED
     memsetString(args.pdu);
+    memsetString(args.smsc);
 #endif
 
     free(args.pdu);
+    free(args.smsc);
 
 #ifdef MEMSET_FREED
     memset(&args, 0, sizeof(args));
 #endif
 
     return;
+
 invalid:
     invalidCommandBlock(pRI);
-    return;
 }
 
 /**
@@ -653,22 +668,27 @@ static void dispatchDial(Parcel& p, RequestInfo* pRI)
     memset(&dial, 0, sizeof(dial));
 
     dial.address = strdupReadString(p);
-
-    status = p.readInt32(&t);
-    dial.clir = (int)t;
-
-    if (status != NO_ERROR || dial.address == NULL) {
+    if (dial.address == NULL) {
+        RLOGE("%s: Failed to read address", __func__);
         goto invalid;
     }
+
+    status = p.readInt32(&t);
+    if (status != NO_ERROR) {
+        RLOGE("%s: Failed to read clir", __func__);
+        goto cleanup;
+    }
+
+    dial.clir = (int)t;
 
     if (s_callbacks.version < 3) { // Remove when partners upgrade to version 3
         uusPresent = 0;
         sizeOfDial = sizeof(dial) - sizeof(RIL_UUS_Info*);
     } else {
         status = p.readInt32(&uusPresent);
-
         if (status != NO_ERROR) {
-            goto invalid;
+            RLOGE("%s: Failed to read uusPresent", __func__);
+            goto cleanup;
         }
 
         if (uusPresent == 0) {
@@ -679,14 +699,23 @@ static void dispatchDial(Parcel& p, RequestInfo* pRI)
             memset(&uusInfo, 0, sizeof(RIL_UUS_Info));
 
             status = p.readInt32(&t);
+            if (status != NO_ERROR) {
+                RLOGE("%s: Failed to read uusType", __func__);
+                goto cleanup;
+            }
             uusInfo.uusType = (RIL_UUS_Type)t;
 
             status = p.readInt32(&t);
+            if (status != NO_ERROR) {
+                RLOGE("%s: Failed to read uusDcs", __func__);
+                goto cleanup;
+            }
             uusInfo.uusDcs = (RIL_UUS_DCS)t;
 
             status = p.readInt32(&len);
             if (status != NO_ERROR) {
-                goto invalid;
+                RLOGE("%s: Failed to read uusLength", __func__);
+                goto cleanup;
             }
 
             // The java code writes -1 for null arrays
@@ -727,9 +756,13 @@ static void dispatchDial(Parcel& p, RequestInfo* pRI)
 #endif
 
     return;
+
+cleanup:
+    free(dial.address);
+    goto invalid;
+
 invalid:
     invalidCommandBlock(pRI);
-    return;
 }
 
 /**
@@ -760,20 +793,47 @@ static void dispatchSIM_IO(Parcel& p, RequestInfo* pRI)
     // note we only check status at the end
 
     status = p.readInt32(&t);
+    if (status != NO_ERROR) {
+        RLOGE("%s: Failed to read command", __func__);
+        goto invalid;
+    }
     simIO.v6.command = (int)t;
 
     status = p.readInt32(&t);
+    if (status != NO_ERROR) {
+        RLOGE("%s: Failed to read fileid", __func__);
+        goto invalid;
+    }
     simIO.v6.fileid = (int)t;
 
     simIO.v6.path = strdupReadString(p);
+    if (simIO.v6.path == NULL) {
+        RLOGE("%s: Failed to read path", __func__);
+        goto invalid;
+    }
 
     status = p.readInt32(&t);
+    if (status != NO_ERROR) {
+        RLOGE("%s: Failed to read p1", __func__);
+        free(simIO.v6.path);
+        goto invalid;
+    }
     simIO.v6.p1 = (int)t;
 
     status = p.readInt32(&t);
+    if (status != NO_ERROR) {
+        RLOGE("%s: Failed to read p2", __func__);
+        free(simIO.v6.path);
+        goto invalid;
+    }
     simIO.v6.p2 = (int)t;
 
     status = p.readInt32(&t);
+    if (status != NO_ERROR) {
+        RLOGE("%s: Failed to read p3", __func__);
+        free(simIO.v6.path);
+        goto invalid;
+    }
     simIO.v6.p3 = (int)t;
 
     simIO.v6.data = strdupReadString(p);
@@ -787,10 +847,6 @@ static void dispatchSIM_IO(Parcel& p, RequestInfo* pRI)
         (char*)simIO.v6.data, (char*)simIO.v6.pin2, simIO.v6.aidPtr);
     closeRequest;
     printRequest(pRI->token, pRI->pCI->requestNumber);
-
-    if (status != NO_ERROR) {
-        goto invalid;
-    }
 
     size = (s_callbacks.version < 6) ? sizeof(simIO.v5) : sizeof(simIO.v6);
     s_callbacks.onRequest(pRI->pCI->requestNumber, &simIO, size, pRI);
@@ -812,9 +868,9 @@ static void dispatchSIM_IO(Parcel& p, RequestInfo* pRI)
 #endif
 
     return;
+
 invalid:
     invalidCommandBlock(pRI);
-    return;
 }
 
 /**
@@ -838,24 +894,51 @@ static void dispatchSIM_APDU(Parcel& p, RequestInfo* pRI)
     // Note we only check status at the end. Any single failure leads to
     // subsequent reads filing.
     status = p.readInt32(&t);
+    if (status != NO_ERROR) {
+        RLOGE("%s: Failed to read sessionid", __func__);
+        goto invalid;
+    }
     apdu.sessionid = (int)t;
 
     status = p.readInt32(&t);
+    if (status != NO_ERROR) {
+        RLOGE("%s: Failed to read cla", __func__);
+        goto invalid;
+    }
     apdu.cla = (int)t;
 
     status = p.readInt32(&t);
+    if (status != NO_ERROR) {
+        RLOGE("%s: Failed to read instruction", __func__);
+        goto invalid;
+    }
     apdu.instruction = (int)t;
 
     status = p.readInt32(&t);
+    if (status != NO_ERROR) {
+        RLOGE("%s: Failed to read p1", __func__);
+        goto invalid;
+    }
     apdu.p1 = (int)t;
 
     status = p.readInt32(&t);
+    if (status != NO_ERROR) {
+        RLOGE("%s: Failed to read p2", __func__);
+        goto invalid;
+    }
     apdu.p2 = (int)t;
 
     status = p.readInt32(&t);
+    if (status != NO_ERROR) {
+        RLOGE("%s: Failed to read p3", __func__);
+        goto invalid;
+    }
     apdu.p3 = (int)t;
 
     apdu.data = strdupReadString(p);
+    if (apdu.data == NULL) {
+        RLOGI("%s: Apdu data is NULL", __func__);
+    }
 
     startRequest;
     appendPrintBuf("%ssessionid=%d,cla=%d,ins=%d,p1=%d,p2=%d,p3=%d,data=%s",
@@ -863,10 +946,6 @@ static void dispatchSIM_APDU(Parcel& p, RequestInfo* pRI)
         apdu.p3, (char*)apdu.data);
     closeRequest;
     printRequest(pRI->token, pRI->pCI->requestNumber);
-
-    if (status != NO_ERROR) {
-        goto invalid;
-    }
 
     s_callbacks.onRequest(pRI->pCI->requestNumber, &apdu, sizeof(RIL_SIM_APDU), pRI);
 
@@ -880,9 +959,9 @@ static void dispatchSIM_APDU(Parcel& p, RequestInfo* pRI)
 #endif
 
     return;
+
 invalid:
     invalidCommandBlock(pRI);
-    return;
 }
 
 /**
@@ -892,7 +971,7 @@ invalid:
  *  int32_t reason
  *  int32_t serviceCode
  *  int32_t toa
- *  String number  (0 length -> null)
+ *  String number  (0 length -> null)dispatchCallForward
  *  int32_t timeSeconds
  */
 static void dispatchCallForward(Parcel& p, RequestInfo* pRI)
@@ -904,28 +983,47 @@ static void dispatchCallForward(Parcel& p, RequestInfo* pRI)
     RLOGD("dispatchCallForward");
     memset(&cff, 0, sizeof(cff));
 
-    // note we only check status at the end
-
     status = p.readInt32(&t);
+    if (status != NO_ERROR) {
+        RLOGE("%s: Failed to read status", __func__);
+        goto invalid;
+    }
     cff.status = (int)t;
 
     status = p.readInt32(&t);
+    if (status != NO_ERROR) {
+        RLOGE("%s: Failed to read reason", __func__);
+        goto invalid;
+    }
     cff.reason = (int)t;
 
     status = p.readInt32(&t);
+    if (status != NO_ERROR) {
+        RLOGE("%s: Failed to read serviceClass", __func__);
+        goto invalid;
+    }
     cff.serviceClass = (int)t;
 
     status = p.readInt32(&t);
+    if (status != NO_ERROR) {
+        RLOGE("%s: Failed to read toa", __func__);
+        goto invalid;
+    }
     cff.toa = (int)t;
 
     cff.number = strdupReadString(p);
-
-    status = p.readInt32(&t);
-    cff.timeSeconds = (int)t;
-
-    if (status != NO_ERROR) {
+    if (cff.number == NULL) {
+        RLOGE("%s: Failed to read number", __func__);
         goto invalid;
     }
+
+    status = p.readInt32(&t);
+    if (status != NO_ERROR) {
+        RLOGE("%s: Failed to read timeSeconds", __func__);
+        free(cff.number);
+        goto invalid;
+    }
+    cff.timeSeconds = (int)t;
 
     // special case: number 0-length fields is null
 
@@ -953,9 +1051,9 @@ static void dispatchCallForward(Parcel& p, RequestInfo* pRI)
 #endif
 
     return;
+
 invalid:
     invalidCommandBlock(pRI);
-    return;
 }
 
 static void dispatchRaw(Parcel& p, RequestInfo* pRI)
@@ -3305,218 +3403,207 @@ const char* callStateToString(RIL_CallState s)
 
 extern "C" const char* requestToString(int request)
 {
-    /*
-     cat libs/telephony/ril_commands.h \
-     | egrep "^ *{RIL_" \
-     | sed -re 's/\{RIL_([^,]+),[^,]+,([^}]+).+/case RIL_\1: return "\1";/'
-
-
-     cat libs/telephony/ril_unsol_commands.h \
-     | egrep "^ *{RIL_" \
-     | sed -re 's/\{RIL_([^,]+),([^}]+).+/case RIL_\1: return "\1";/'
-
-    */
     switch (request) {
     case RIL_REQUEST_GET_SIM_STATUS:
-        return "GET_SIM_STATUS";
+        return "RIL_REQUEST_GET_SIM_STATUS";
     case RIL_REQUEST_ENTER_SIM_PIN:
-        return "ENTER_SIM_PIN";
+        return "RIL_REQUEST_ENTER_SIM_PIN";
     case RIL_REQUEST_ENTER_SIM_PUK:
-        return "ENTER_SIM_PUK";
+        return "RIL_REQUEST_ENTER_SIM_PUK";
     case RIL_REQUEST_ENTER_SIM_PIN2:
-        return "ENTER_SIM_PIN2";
+        return "RIL_REQUEST_ENTER_SIM_PIN2";
     case RIL_REQUEST_ENTER_SIM_PUK2:
-        return "ENTER_SIM_PUK2";
+        return "RIL_REQUEST_ENTER_SIM_PUK2";
     case RIL_REQUEST_CHANGE_SIM_PIN:
-        return "CHANGE_SIM_PIN";
+        return "RIL_REQUEST_CHANGE_SIM_PIN";
     case RIL_REQUEST_CHANGE_SIM_PIN2:
-        return "CHANGE_SIM_PIN2";
+        return "RIL_REQUEST_CHANGE_SIM_PIN2";
     case RIL_REQUEST_ENTER_NETWORK_DEPERSONALIZATION:
-        return "ENTER_NETWORK_DEPERSONALIZATION";
+        return "RIL_REQUEST_ENTER_NETWORK_DEPERSONALIZATION";
     case RIL_REQUEST_GET_CURRENT_CALLS:
-        return "GET_CURRENT_CALLS";
+        return "RIL_REQUEST_GET_CURRENT_CALLS";
     case RIL_REQUEST_DIAL:
-        return "DIAL";
+        return "RIL_REQUEST_DIAL";
     case RIL_REQUEST_GET_IMSI:
-        return "GET_IMSI";
+        return "RIL_REQUEST_GET_IMSI";
     case RIL_REQUEST_HANGUP:
-        return "HANGUP";
+        return "RIL_REQUEST_HANGUP";
     case RIL_REQUEST_HANGUP_WAITING_OR_BACKGROUND:
-        return "HANGUP_WAITING_OR_BACKGROUND";
+        return "RIL_REQUEST_HANGUP_WAITING_OR_BACKGROUND";
     case RIL_REQUEST_HANGUP_FOREGROUND_RESUME_BACKGROUND:
-        return "HANGUP_FOREGROUND_RESUME_BACKGROUND";
+        return "RIL_REQUEST_HANGUP_FOREGROUND_RESUME_BACKGROUND";
     case RIL_REQUEST_SWITCH_WAITING_OR_HOLDING_AND_ACTIVE:
-        return "SWITCH_WAITING_OR_HOLDING_AND_ACTIVE";
+        return "RIL_REQUEST_SWITCH_WAITING_OR_HOLDING_AND_ACTIVE";
     case RIL_REQUEST_CONFERENCE:
-        return "CONFERENCE";
+        return "RIL_REQUEST_CONFERENCE";
     case RIL_REQUEST_UDUB:
-        return "UDUB";
+        return "RIL_REQUEST_UDUB";
     case RIL_REQUEST_LAST_CALL_FAIL_CAUSE:
-        return "LAST_CALL_FAIL_CAUSE";
+        return "RIL_REQUEST_LAST_CALL_FAIL_CAUSE";
     case RIL_REQUEST_SIGNAL_STRENGTH:
-        return "SIGNAL_STRENGTH";
+        return "RIL_REQUEST_SIGNAL_STRENGTH";
     case RIL_REQUEST_VOICE_REGISTRATION_STATE:
-        return "VOICE_REGISTRATION_STATE";
+        return "RIL_REQUEST_VOICE_REGISTRATION_STATE";
     case RIL_REQUEST_DATA_REGISTRATION_STATE:
-        return "DATA_REGISTRATION_STATE";
+        return "RIL_REQUEST_DATA_REGISTRATION_STATE";
     case RIL_REQUEST_OPERATOR:
-        return "OPERATOR";
+        return "RIL_REQUEST_OPERATOR";
     case RIL_REQUEST_RADIO_POWER:
-        return "RADIO_POWER";
+        return "RIL_REQUEST_RADIO_POWER";
     case RIL_REQUEST_DTMF:
-        return "DTMF";
+        return "RIL_REQUEST_DTMF";
     case RIL_REQUEST_SEND_SMS:
-        return "SEND_SMS";
+        return "RIL_REQUEST_SEND_SMS";
     case RIL_REQUEST_SEND_SMS_EXPECT_MORE:
-        return "SEND_SMS_EXPECT_MORE";
+        return "RIL_REQUEST_SEND_SMS_EXPECT_MORE";
     case RIL_REQUEST_SETUP_DATA_CALL:
-        return "SETUP_DATA_CALL";
+        return "RIL_REQUEST_SETUP_DATA_CALL";
     case RIL_REQUEST_SIM_IO:
-        return "SIM_IO";
+        return "RIL_REQUEST_SIM_IO";
     case RIL_REQUEST_SEND_USSD:
-        return "SEND_USSD";
+        return "RIL_REQUEST_SEND_USSD";
     case RIL_REQUEST_CANCEL_USSD:
-        return "CANCEL_USSD";
+        return "RIL_REQUEST_CANCEL_USSD";
     case RIL_REQUEST_GET_CLIR:
-        return "GET_CLIR";
+        return "RIL_REQUEST_GET_CLIR";
     case RIL_REQUEST_SET_CLIR:
-        return "SET_CLIR";
+        return "RIL_REQUEST_SET_CLIR";
     case RIL_REQUEST_QUERY_CALL_FORWARD_STATUS:
-        return "QUERY_CALL_FORWARD_STATUS";
+        return "RIL_REQUEST_QUERY_CALL_FORWARD_STATUS";
     case RIL_REQUEST_SET_CALL_FORWARD:
-        return "SET_CALL_FORWARD";
+        return "RIL_REQUEST_SET_CALL_FORWARD";
     case RIL_REQUEST_QUERY_CALL_WAITING:
-        return "QUERY_CALL_WAITING";
+        return "RIL_REQUEST_QUERY_CALL_WAITING";
     case RIL_REQUEST_SET_CALL_WAITING:
-        return "SET_CALL_WAITING";
+        return "RIL_REQUEST_SET_CALL_WAITING";
     case RIL_REQUEST_SMS_ACKNOWLEDGE:
-        return "SMS_ACKNOWLEDGE";
+        return "RIL_REQUEST_SMS_ACKNOWLEDGE";
     case RIL_REQUEST_GET_IMEI:
-        return "GET_IMEI";
+        return "RIL_REQUEST_GET_IMEI";
     case RIL_REQUEST_GET_IMEISV:
-        return "GET_IMEISV";
+        return "RIL_REQUEST_GET_IMEISV";
     case RIL_REQUEST_ANSWER:
-        return "ANSWER";
+        return "RIL_REQUEST_ANSWER";
     case RIL_REQUEST_DEACTIVATE_DATA_CALL:
-        return "DEACTIVATE_DATA_CALL";
+        return "RIL_REQUEST_DEACTIVATE_DATA_CALL";
     case RIL_REQUEST_QUERY_FACILITY_LOCK:
-        return "QUERY_FACILITY_LOCK";
+        return "RIL_REQUEST_QUERY_FACILITY_LOCK";
     case RIL_REQUEST_SET_FACILITY_LOCK:
-        return "SET_FACILITY_LOCK";
+        return "RIL_REQUEST_SET_FACILITY_LOCK";
     case RIL_REQUEST_CHANGE_BARRING_PASSWORD:
-        return "CHANGE_BARRING_PASSWORD";
+        return "RIL_REQUEST_CHANGE_BARRING_PASSWORD";
     case RIL_REQUEST_QUERY_NETWORK_SELECTION_MODE:
-        return "QUERY_NETWORK_SELECTION_MODE";
+        return "RIL_REQUEST_QUERY_NETWORK_SELECTION_MODE";
     case RIL_REQUEST_SET_NETWORK_SELECTION_AUTOMATIC:
-        return "SET_NETWORK_SELECTION_AUTOMATIC";
+        return "RIL_REQUEST_SET_NETWORK_SELECTION_AUTOMATIC";
     case RIL_REQUEST_SET_NETWORK_SELECTION_MANUAL:
-        return "SET_NETWORK_SELECTION_MANUAL";
+        return "RIL_REQUEST_SET_NETWORK_SELECTION_MANUAL";
     case RIL_REQUEST_QUERY_AVAILABLE_NETWORKS:
-        return "QUERY_AVAILABLE_NETWORKS ";
+        return "RIL_REQUEST_QUERY_AVAILABLE_NETWORKS ";
     case RIL_REQUEST_DTMF_START:
-        return "DTMF_START";
+        return "RIL_REQUEST_DTMF_START";
     case RIL_REQUEST_DTMF_STOP:
-        return "DTMF_STOP";
+        return "RIL_REQUEST_DTMF_STOP";
     case RIL_REQUEST_BASEBAND_VERSION:
-        return "BASEBAND_VERSION";
+        return "RIL_REQUEST_BASEBAND_VERSION";
     case RIL_REQUEST_SEPARATE_CONNECTION:
-        return "SEPARATE_CONNECTION";
+        return "RIL_REQUEST_SEPARATE_CONNECTION";
     case RIL_REQUEST_SET_PREFERRED_NETWORK_TYPE:
-        return "SET_PREFERRED_NETWORK_TYPE";
+        return "RIL_REQUEST_SET_PREFERRED_NETWORK_TYPE";
     case RIL_REQUEST_GET_PREFERRED_NETWORK_TYPE:
-        return "GET_PREFERRED_NETWORK_TYPE";
+        return "RIL_REQUEST_GET_PREFERRED_NETWORK_TYPE";
     case RIL_REQUEST_GET_NEIGHBORING_CELL_IDS:
-        return "GET_NEIGHBORING_CELL_IDS";
+        return "RIL_REQUEST_GET_NEIGHBORING_CELL_IDS";
     case RIL_REQUEST_SET_MUTE:
-        return "SET_MUTE";
+        return "RIL_REQUEST_SET_MUTE";
     case RIL_REQUEST_GET_MUTE:
-        return "GET_MUTE";
+        return "RIL_REQUEST_GET_MUTE";
     case RIL_REQUEST_QUERY_CLIP:
-        return "QUERY_CLIP";
+        return "RIL_REQUEST_QUERY_CLIP";
     case RIL_REQUEST_LAST_DATA_CALL_FAIL_CAUSE:
-        return "LAST_DATA_CALL_FAIL_CAUSE";
+        return "RIL_REQUEST_LAST_DATA_CALL_FAIL_CAUSE";
     case RIL_REQUEST_DATA_CALL_LIST:
-        return "DATA_CALL_LIST";
+        return "RIL_REQUEST_DATA_CALL_LIST";
     case RIL_REQUEST_RESET_RADIO:
-        return "RESET_RADIO";
+        return "RIL_REQUEST_RESET_RADIO";
     case RIL_REQUEST_OEM_HOOK_RAW:
-        return "OEM_HOOK_RAW";
+        return "RIL_REQUEST_OEM_HOOK_RAW";
     case RIL_REQUEST_OEM_HOOK_STRINGS:
-        return "OEM_HOOK_STRINGS";
+        return "RIL_REQUEST_OEM_HOOK_STRINGS";
     case RIL_REQUEST_SET_BAND_MODE:
-        return "SET_BAND_MODE";
+        return "RIL_REQUEST_SET_BAND_MODE";
     case RIL_REQUEST_QUERY_AVAILABLE_BAND_MODE:
-        return "QUERY_AVAILABLE_BAND_MODE";
+        return "RIL_REQUEST_QUERY_AVAILABLE_BAND_MODE";
     case RIL_REQUEST_STK_GET_PROFILE:
-        return "STK_GET_PROFILE";
+        return "RIL_REQUEST_STK_GET_PROFILE";
     case RIL_REQUEST_STK_SET_PROFILE:
-        return "STK_SET_PROFILE";
+        return "RIL_REQUEST_STK_SET_PROFILE";
     case RIL_REQUEST_STK_SEND_ENVELOPE_COMMAND:
-        return "STK_SEND_ENVELOPE_COMMAND";
+        return "RIL_REQUEST_STK_SEND_ENVELOPE_COMMAND";
     case RIL_REQUEST_STK_SEND_TERMINAL_RESPONSE:
-        return "STK_SEND_TERMINAL_RESPONSE";
+        return "RIL_REQUEST_STK_SEND_TERMINAL_RESPONSE";
     case RIL_REQUEST_STK_HANDLE_CALL_SETUP_REQUESTED_FROM_SIM:
-        return "STK_HANDLE_CALL_SETUP_REQUESTED_FROM_SIM";
+        return "RIL_REQUEST_STK_HANDLE_CALL_SETUP_REQUESTED_FROM_SIM";
     case RIL_REQUEST_SCREEN_STATE:
-        return "SCREEN_STATE";
+        return "RIL_REQUEST_SCREEN_STATE";
     case RIL_REQUEST_EXPLICIT_CALL_TRANSFER:
-        return "EXPLICIT_CALL_TRANSFER";
+        return "RIL_REQUEST_EXPLICIT_CALL_TRANSFER";
     case RIL_REQUEST_SET_LOCATION_UPDATES:
-        return "SET_LOCATION_UPDATES";
+        return "RIL_REQUEST_SET_LOCATION_UPDATES";
     case RIL_REQUEST_SET_TTY_MODE:
-        return "SET_TTY_MODE";
+        return "RIL_REQUEST_SET_TTY_MODE";
     case RIL_REQUEST_QUERY_TTY_MODE:
-        return "QUERY_TTY_MODE";
+        return "RIL_REQUEST_QUERY_TTY_MODE";
     case RIL_REQUEST_GSM_GET_BROADCAST_SMS_CONFIG:
-        return "GSM_GET_BROADCAST_SMS_CONFIG";
+        return "RIL_REQUEST_GSM_GET_BROADCAST_SMS_CONFIG";
     case RIL_REQUEST_GSM_SET_BROADCAST_SMS_CONFIG:
-        return "GSM_SET_BROADCAST_SMS_CONFIG";
+        return "RIL_REQUEST_GSM_SET_BROADCAST_SMS_CONFIG";
     case RIL_REQUEST_DEVICE_IDENTITY:
-        return "DEVICE_IDENTITY";
+        return "RIL_REQUEST_DEVICE_IDENTITY";
     case RIL_REQUEST_EXIT_EMERGENCY_CALLBACK_MODE:
-        return "EXIT_EMERGENCY_CALLBACK_MODE";
+        return "RIL_REQUEST_EXIT_EMERGENCY_CALLBACK_MODE";
     case RIL_REQUEST_GET_SMSC_ADDRESS:
-        return "GET_SMSC_ADDRESS";
+        return "RIL_REQUEST_GET_SMSC_ADDRESS";
     case RIL_REQUEST_SET_SMSC_ADDRESS:
-        return "SET_SMSC_ADDRESS";
+        return "RIL_REQUEST_SET_SMSC_ADDRESS";
     case RIL_REQUEST_REPORT_SMS_MEMORY_STATUS:
-        return "REPORT_SMS_MEMORY_STATUS";
+        return "RIL_REQUEST_REPORT_SMS_MEMORY_STATUS";
     case RIL_REQUEST_REPORT_STK_SERVICE_IS_RUNNING:
-        return "REPORT_STK_SERVICE_IS_RUNNING";
+        return "RIL_REQUEST_REPORT_STK_SERVICE_IS_RUNNING";
     case RIL_REQUEST_ISIM_AUTHENTICATION:
-        return "ISIM_AUTHENTICATION";
+        return "RIL_REQUEST_ISIM_AUTHENTICATION";
     case RIL_REQUEST_ACKNOWLEDGE_INCOMING_GSM_SMS_WITH_PDU:
         return "RIL_REQUEST_ACKNOWLEDGE_INCOMING_GSM_SMS_WITH_PDU";
     case RIL_REQUEST_STK_SEND_ENVELOPE_WITH_STATUS:
         return "RIL_REQUEST_STK_SEND_ENVELOPE_WITH_STATUS";
     case RIL_REQUEST_VOICE_RADIO_TECH:
-        return "VOICE_RADIO_TECH";
+        return "RIL_REQUEST_VOICE_RADIO_TECH";
     case RIL_REQUEST_WRITE_SMS_TO_SIM:
-        return "WRITE_SMS_TO_SIM";
+        return "RIL_REQUEST_WRITE_SMS_TO_SIM";
     case RIL_REQUEST_GET_CELL_INFO_LIST:
-        return "GET_CELL_INFO_LIST";
+        return "RIL_REQUEST_GET_CELL_INFO_LIST";
     case RIL_REQUEST_SET_UNSOL_CELL_INFO_LIST_RATE:
-        return "SET_UNSOL_CELL_INFO_LIST_RATE";
+        return "RIL_REQUEST_SET_UNSOL_CELL_INFO_LIST_RATE";
     case RIL_REQUEST_SET_INITIAL_ATTACH_APN:
         return "RIL_REQUEST_SET_INITIAL_ATTACH_APN";
     case RIL_REQUEST_IMS_REGISTRATION_STATE:
-        return "IMS_REGISTRATION_STATE";
+        return "RIL_REQUEST_IMS_REGISTRATION_STATE";
     case RIL_REQUEST_IMS_SEND_SMS:
-        return "IMS_SEND_SMS";
+        return "RIL_REQUEST_IMS_SEND_SMS";
     case RIL_REQUEST_SIM_TRANSMIT_APDU_BASIC:
-        return "SIM_TRANSMIT_APDU_BASIC";
+        return "RIL_REQUEST_SIM_TRANSMIT_APDU_BASIC";
     case RIL_REQUEST_SIM_OPEN_CHANNEL:
-        return "SIM_OPEN_CHANNEL";
+        return "RIL_REQUEST_SIM_OPEN_CHANNEL";
     case RIL_REQUEST_SIM_CLOSE_CHANNEL:
-        return "SIM_CLOSE_CHANNEL";
+        return "RIL_REQUEST_SIM_CLOSE_CHANNEL";
     case RIL_REQUEST_SIM_TRANSMIT_APDU_CHANNEL:
-        return "SIM_TRANSMIT_APDU_CHANNEL";
+        return "RIL_REQUEST_SIM_TRANSMIT_APDU_CHANNEL";
     case RIL_REQUEST_SET_DATA_PROFILE:
-        return "SET_DATA_PROFILE";
+        return "RIL_REQUEST_SET_DATA_PROFILE";
     case RIL_REQUEST_GET_ACTIVITY_INFO:
         return "RIL_REQUEST_GET_ACTIVITY_INFO";
     case RIL_REQUEST_GET_MODEM_STATUS:
-        return "GET_MODEM_STATUS";
+        return "RIL_REQUEST_GET_MODEM_STATUS";
     case RIL_REQUEST_DEFLECT_CALL:
         return "DEFLECT_CALL";
     case RIL_REQUEST_SUPPRESS_MESSAGE_REPORT:
@@ -3528,77 +3615,77 @@ extern "C" const char* requestToString(int request)
     case RIL_REQUEST_SET_DEVICE_STATIONARY_JUDGE_SCOPE:
         return "RIL_REQUEST_SET_DEVICE_STATIONARY_JUDGE_SCOPE";
     case RIL_REQUEST_EMERGENCY_DIAL:
-        return "EMERGENCY_DIAL";
+        return "RIL_REQUEST_EMERGENCY_DIAL";
     case RIL_REQUEST_ENABLE_MODEM:
         return "RIL_REQUEST_ENABLE_MODEM";
     case RIL_REQUEST_IMS_REG_STATE_CHANGE:
-        return "IMS_REG_STATE_CHANGE";
+        return "RIL_REQUEST_IMS_REG_STATE_CHANGE";
     case RIL_REQUEST_IMS_SET_SERVICE_STATUS:
-        return "IMS_SET_SERVICE_STATUS";
+        return "RIL_REQUEST_IMS_SET_SERVICE_STATUS";
     case RIL_REQUEST_DIAL_CONFERENCE:
-        return "DIAL_CONFERENCE";
+        return "RIL_REQUEST_DIAL_CONFERENCE";
     case RIL_REQUEST_SET_EMERGENCY_NUMBER:
-        return "SET_EMERGENCY_NUMBER";
+        return "RIL_REQUEST_SET_EMERGENCY_NUMBER";
     case RIL_UNSOL_RESPONSE_RADIO_STATE_CHANGED:
-        return "UNSOL_RESPONSE_RADIO_STATE_CHANGED";
+        return "RIL_UNSOL_RESPONSE_RADIO_STATE_CHANGED";
     case RIL_UNSOL_RESPONSE_CALL_STATE_CHANGED:
         return "UNSOL_RESPONSE_CALL_STATE_CHANGED";
     case RIL_UNSOL_RESPONSE_NETWORK_STATE_CHANGED:
         return "RIL_UNSOL_RESPONSE_NETWORK_STATE_CHANGED";
     case RIL_UNSOL_RESPONSE_NEW_SMS:
-        return "UNSOL_RESPONSE_NEW_SMS";
+        return "RIL_UNSOL_RESPONSE_NEW_SMS";
     case RIL_UNSOL_RESPONSE_NEW_SMS_STATUS_REPORT:
-        return "UNSOL_RESPONSE_NEW_SMS_STATUS_REPORT";
+        return "RIL_UNSOL_RESPONSE_NEW_SMS_STATUS_REPORT";
     case RIL_UNSOL_RESPONSE_NEW_SMS_ON_SIM:
-        return "UNSOL_RESPONSE_NEW_SMS_ON_SIM";
+        return "RIL_UNSOL_RESPONSE_NEW_SMS_ON_SIM";
     case RIL_UNSOL_ON_USSD:
-        return "UNSOL_ON_USSD";
+        return "RIL_UNSOL_ON_USSD";
     case RIL_UNSOL_ON_USSD_REQUEST:
-        return "UNSOL_ON_USSD_REQUEST(obsolete)";
+        return "RIL_UNSOL_ON_USSD_REQUEST(obsolete)";
     case RIL_UNSOL_NITZ_TIME_RECEIVED:
-        return "UNSOL_NITZ_TIME_RECEIVED";
+        return "RIL_UNSOL_NITZ_TIME_RECEIVED";
     case RIL_UNSOL_SIGNAL_STRENGTH:
-        return "UNSOL_SIGNAL_STRENGTH";
+        return "RIL_UNSOL_SIGNAL_STRENGTH";
     case RIL_UNSOL_SUPP_SVC_NOTIFICATION:
-        return "UNSOL_SUPP_SVC_NOTIFICATION";
+        return "RIL_UNSOL_SUPP_SVC_NOTIFICATION";
     case RIL_UNSOL_STK_SESSION_END:
-        return "UNSOL_STK_SESSION_END";
+        return "RIL_UNSOL_STK_SESSION_END";
     case RIL_UNSOL_STK_PROACTIVE_COMMAND:
-        return "UNSOL_STK_PROACTIVE_COMMAND";
+        return "RIL_UNSOL_STK_PROACTIVE_COMMAND";
     case RIL_UNSOL_STK_EVENT_NOTIFY:
-        return "UNSOL_STK_EVENT_NOTIFY";
+        return "RIL_UNSOL_STK_EVENT_NOTIFY";
     case RIL_UNSOL_STK_CALL_SETUP:
-        return "UNSOL_STK_CALL_SETUP";
+        return "RIL_UNSOL_STK_CALL_SETUP";
     case RIL_UNSOL_SIM_SMS_STORAGE_FULL:
-        return "UNSOL_SIM_SMS_STORAGE_FUL";
+        return "RIL_UNSOL_SIM_SMS_STORAGE_FULL";
     case RIL_UNSOL_SIM_REFRESH:
-        return "UNSOL_SIM_REFRESH";
+        return "RIL_UNSOL_SIM_REFRESH";
     case RIL_UNSOL_DATA_CALL_LIST_CHANGED:
-        return "UNSOL_DATA_CALL_LIST_CHANGED";
+        return "RIL_UNSOL_DATA_CALL_LIST_CHANGED";
     case RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED:
-        return "UNSOL_RESPONSE_SIM_STATUS_CHANGED";
+        return "RIL_UNSOL_RESPONSE_SIM_STATUS_CHANGED";
     case RIL_UNSOL_RESPONSE_NEW_BROADCAST_SMS:
-        return "UNSOL_NEW_BROADCAST_SMS";
+        return "RIL_UNSOL_RESPONSE_NEW_BROADCAST_SMS";
     case RIL_UNSOL_RESTRICTED_STATE_CHANGED:
-        return "UNSOL_RESTRICTED_STATE_CHANGED";
+        return "RIL_UNSOL_RESTRICTED_STATE_CHANGED";
     case RIL_UNSOL_ENTER_EMERGENCY_CALLBACK_MODE:
-        return "UNSOL_ENTER_EMERGENCY_CALLBACK_MODE";
+        return "RIL_UNSOL_ENTER_EMERGENCY_CALLBACK_MODE";
     case RIL_UNSOL_OEM_HOOK_RAW:
-        return "UNSOL_OEM_HOOK_RAW";
+        return "RIL_UNSOL_OEM_HOOK_RAW";
     case RIL_UNSOL_RINGBACK_TONE:
-        return "UNSOL_RINGBACK_TONE";
+        return "RIL_UNSOL_RINGBACK_TONE";
     case RIL_UNSOL_RESEND_INCALL_MUTE:
-        return "UNSOL_RESEND_INCALL_MUTE";
+        return "RIL_UNSOL_RESEND_INCALL_MUTE";
     case RIL_UNSOL_EXIT_EMERGENCY_CALLBACK_MODE:
-        return "UNSOL_EXIT_EMERGENCY_CALLBACK_MODE";
+        return "RIL_UNSOL_EXIT_EMERGENCY_CALLBACK_MODE";
     case RIL_UNSOL_RIL_CONNECTED:
-        return "UNSOL_RIL_CONNECTED";
+        return "RIL_UNSOL_RIL_CONNECTED";
     case RIL_UNSOL_VOICE_RADIO_TECH_CHANGED:
-        return "UNSOL_VOICE_RADIO_TECH_CHANGED";
+        return "RIL_UNSOL_VOICE_RADIO_TECH_CHANGED";
     case RIL_UNSOL_CELL_INFO_LIST:
-        return "UNSOL_CELL_INFO_LIST";
+        return "RIL_UNSOL_CELL_INFO_LIST";
     case RIL_UNSOL_RESPONSE_IMS_NETWORK_STATE_CHANGED:
-        return "RESPONSE_IMS_NETWORK_STATE_CHANGED";
+        return "RIL_UNSOL_RESPONSE_IMS_NETWORK_STATE_CHANGED";
     case RIL_UNSOL_MODEM_RESTART:
         return "RIL_UNSOL_MODEM_RESTART";
     case RIL_UNSOL_EMERGENCY_NUMBER_LIST:
