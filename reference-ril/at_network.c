@@ -1394,6 +1394,135 @@ static void on_signal_strength_unsol_resp(const char* s)
     free(line);
 }
 
+static void on_cellinfo_unsol_resp(const char* s)
+{
+    char *line = NULL, *p = NULL;
+    int count = 0;
+    char* type = NULL;
+    uint64_t curtime;
+    RIL_Errno ril_err = RIL_E_SUCCESS;
+    RIL_CellInfo_v12* cell_info_lists = NULL;
+    const int invalid = 0x7FFFFFFF;
+
+    line = p = strdup(s);
+    if (!line) {
+        RLOGE("%s: Unable to allocate memory.", __func__);
+        ril_err = RIL_E_GENERIC_FAILURE;
+        goto on_exit;
+    }
+
+    if (at_tok_start(&line) < 0) {
+        RLOGE("%s: Invalid response string.", __func__);
+        ril_err = RIL_E_GENERIC_FAILURE;
+        goto on_exit;
+    }
+
+    if (at_tok_nextint(&line, &count) < 0) {
+        RLOGE("%s: Invalid cell info count.", __func__);
+        ril_err = RIL_E_GENERIC_FAILURE;
+        goto on_exit;
+    }
+
+    cell_info_lists = (RIL_CellInfo_v12*)calloc(count, sizeof(RIL_CellInfo_v12));
+    for (int i = 0; i < count; i++) {
+        if (at_tok_nextstr(&line, &type) < 0) {
+            RLOGE("%s: Index (%d) failed to parse cellInfoType.", __func__, i);
+            ril_err = RIL_E_GENERIC_FAILURE;
+            goto on_exit;
+        }
+
+        if (!strcmp(type, "LTE") || !strcmp(type, "1")) {
+            RLOGI("%s: Index (%d)'s cell info type is LTE!", __func__, i);
+
+            cell_info_lists[i].cellInfoType = RIL_CELL_INFO_TYPE_LTE;
+            cell_info_lists[i].timeStampType = RIL_TIMESTAMP_TYPE_OEM_RIL;
+            curtime = ril_nano_time();
+            cell_info_lists[i].timeStamp = curtime - 1000;
+        } else {
+            RLOGE("%s: Index (%d)'s cell info type is invalid", __func__, i);
+            ril_err = RIL_E_GENERIC_FAILURE;
+            goto on_exit;
+        }
+
+        if (at_tok_nextint(&line, &cell_info_lists[i].registered) < 0) {
+            RLOGE("%s: Index (%d) failed to parse registered.", __func__, i);
+            ril_err = RIL_E_GENERIC_FAILURE;
+            goto on_exit;
+        }
+
+        if (at_tok_nextint(&line, &cell_info_lists[i].CellInfo.lte.cellIdentityLte.mcc) < 0) {
+            RLOGE("%s: Index (%d) failed to parse mcc.", __func__, i);
+            ril_err = RIL_E_GENERIC_FAILURE;
+            goto on_exit;
+        }
+
+        if (at_tok_nextint(&line, &cell_info_lists[i].CellInfo.lte.cellIdentityLte.mnc) < 0) {
+            RLOGE("%s: Index (%d) failed to parse mnc.", __func__, i);
+            ril_err = RIL_E_GENERIC_FAILURE;
+            goto on_exit;
+        }
+
+        if (at_tok_nextint(&line, &cell_info_lists[i].CellInfo.lte.cellIdentityLte.ci) < 0) {
+            RLOGE("%s: Index (%d) failed to parse ci.", __func__, i);
+            ril_err = RIL_E_GENERIC_FAILURE;
+            goto on_exit;
+        }
+
+        if (at_tok_nextint(&line, &cell_info_lists[i].CellInfo.lte.cellIdentityLte.pci) < 0) {
+            RLOGE("%s: Index (%d) failed to parse pci.", __func__, i);
+            ril_err = RIL_E_GENERIC_FAILURE;
+            goto on_exit;
+        }
+
+        if (at_tok_nextint(&line, &cell_info_lists[i].CellInfo.lte.cellIdentityLte.tac) < 0) {
+            RLOGE("%s: Index (%d) failed to parse tac.", __func__, i);
+            ril_err = RIL_E_GENERIC_FAILURE;
+            goto on_exit;
+        }
+
+        if (at_tok_nextint(&line, &cell_info_lists[i].CellInfo.lte.cellIdentityLte.earfcn) < 0) {
+            RLOGE("%s: Index (%d) failed to parse earfcn.", __func__, i);
+            ril_err = RIL_E_GENERIC_FAILURE;
+            goto on_exit;
+        }
+
+        if (at_tok_nextint(&line,
+                &cell_info_lists[i].CellInfo.lte.signalStrengthLte.signalStrength)
+            < 0) {
+            RLOGE("%s: Index (%d) failed to parse signalStrength.", __func__, i);
+            ril_err = RIL_E_GENERIC_FAILURE;
+            goto on_exit;
+        }
+
+        if (at_tok_nextint(&line, &cell_info_lists[i].CellInfo.lte.signalStrengthLte.rsrp) < 0) {
+            RLOGE("%s: Index (%d) failed to parse rsrp.", __func__, i);
+            ril_err = RIL_E_GENERIC_FAILURE;
+            goto on_exit;
+        }
+
+        if (at_tok_nextint(&line, &cell_info_lists[i].CellInfo.lte.signalStrengthLte.rsrq) < 0) {
+            RLOGE("%s: Index (%d) failed to parse rsrq.", __func__, i);
+            ril_err = RIL_E_GENERIC_FAILURE;
+            goto on_exit;
+        }
+
+        cell_info_lists[i].CellInfo.lte.signalStrengthLte.rssnr = invalid;
+        cell_info_lists[i].CellInfo.lte.signalStrengthLte.cqi = invalid;
+        cell_info_lists[i].CellInfo.lte.signalStrengthLte.timingAdvance = invalid;
+    }
+
+on_exit:
+    if (ril_err == RIL_E_SUCCESS && count > 0) {
+        RIL_onUnsolicitedResponse(RIL_UNSOL_CELL_INFO_LIST,
+            cell_info_lists, count * sizeof(RIL_CellInfo_v12));
+    } else {
+        RLOGE("%s: Parse unsol cell info error.", __func__);
+    }
+
+    free(cell_info_lists);
+    free(p);
+}
+
 int mapNetworkRegistrationResponse(int in_response)
 {
     int out_response = 0;
@@ -1760,6 +1889,10 @@ bool try_handle_unsol_net(const char* s)
         RIL_onUnsolicitedResponse(
             RIL_UNSOL_RESPONSE_IMS_NETWORK_STATE_CHANGED,
             NULL, 0);
+        ret = true;
+    } else if (strStartsWith(s, "+CINFO: ")) {
+        RLOGI("Receive cell info URC");
+        on_cellinfo_unsol_resp(s);
         ret = true;
     } else {
         RLOGD("Can't match any unsol network handlers");
