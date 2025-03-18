@@ -41,6 +41,32 @@
 static ModemInfo* sMdmInfo;
 static int s_modem_enabled = 0;
 
+static const char HEX_CHARS[] = "0123456789ABCDEF";
+
+extern uint8_t* convertHexStringToBytes(void* response, size_t responseLen);
+
+char* convertBytesToHexString(const uint8_t* bytes, size_t len)
+{
+    if (bytes == NULL || len == 0) {
+        return NULL;
+    }
+
+    char* hexString = (char*)malloc(2 * len + 1);
+    if (hexString == NULL) {
+        return NULL;
+    }
+
+    for (size_t i = 0; i < len; ++i) {
+        uint8_t byte = bytes[i];
+        hexString[2 * i] = HEX_CHARS[(byte >> 4) & 0x0F];
+        hexString[2 * i + 1] = HEX_CHARS[byte & 0x0F];
+    }
+
+    hexString[2 * len] = '\0';
+
+    return hexString;
+}
+
 static void requestRadioPower(void* data, size_t datalen, RIL_Token t)
 {
     int onOff;
@@ -609,6 +635,70 @@ static void requestOemHookStrings(void* data, size_t datalen, RIL_Token t)
     responseStr = NULL;
 }
 
+static void requestOemHookRaw(void* data, size_t datalen, RIL_Token t)
+{
+    RIL_Errno ril_err = RIL_E_SUCCESS;
+    ATResponse* p_response;
+    int err = AT_ERROR_GENERIC;
+    char* cmd = NULL;
+    char* req_data = NULL;
+    char* line = NULL;
+    char* resp_str = NULL;
+    uint8_t* resp_data = NULL;
+
+    if (data == NULL) {
+        RLOGE("%s: data is null", __func__);
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+        return;
+    }
+
+    req_data = convertBytesToHexString(data, datalen);
+    if (asprintf(&cmd, "AT+CLED=%s", req_data) < 0) {
+        RLOGE("Failed to allocate memory");
+        ril_err = RIL_E_NO_MEMORY;
+        goto on_exit;
+    }
+
+    err = at_send_command_singleline(cmd, "+CLED:", &p_response);
+    if (err != AT_ERROR_OK || !p_response || p_response->success != AT_OK) {
+        RLOGE("%s: Failure occurred in sending %s, ret: %s, p_response: %p, final response: %s",
+            __func__, cmd, at_io_err_str(err), p_response,
+            p_response ? p_response->finalResponse : "null");
+        ril_err = RIL_E_GENERIC_FAILURE;
+        goto on_exit;
+    }
+
+    line = p_response->p_intermediates->line;
+    err = at_tok_start(&line);
+    if (err < 0) {
+        RLOGE("%s: Failed to parse line.", __func__);
+        ril_err = RIL_E_GENERIC_FAILURE;
+        goto on_exit;
+    }
+
+    err = at_tok_nextstr(&line, &resp_str);
+    if (err < 0) {
+        RLOGE("%s: Failed to parse resp.", __func__);
+        ril_err = RIL_E_GENERIC_FAILURE;
+        goto on_exit;
+    }
+
+    resp_data = convertHexStringToBytes(resp_str, strlen(resp_str));
+    if (resp_data == NULL) {
+        RLOGE("%s: Failed to convert hex string to bytes.", __func__);
+        ril_err = RIL_E_GENERIC_FAILURE;
+        goto on_exit;
+    }
+
+on_exit:
+    RIL_onRequestComplete(t, ril_err, ril_err == RIL_E_SUCCESS ? resp_data : NULL,
+        ril_err == RIL_E_SUCCESS ? strlen(resp_str) / 2 : 0);
+    at_response_free(p_response);
+    free(req_data);
+    free(resp_data);
+    free(cmd);
+}
+
 static void requestEnableModem(void* data, size_t datalen, RIL_Token t)
 {
     (void)datalen;
@@ -848,8 +938,7 @@ void on_request_modem(int request, void* data, size_t datalen, RIL_Token t)
         requestBaseBandVersion(data, datalen, t);
         break;
     case RIL_REQUEST_OEM_HOOK_RAW:
-        // echo back data
-        RIL_onRequestComplete(t, RIL_E_SUCCESS, data, datalen);
+        requestOemHookRaw(data, datalen, t);
         break;
     case RIL_REQUEST_OEM_HOOK_STRINGS:
         requestOemHookStrings(data, datalen, t);
