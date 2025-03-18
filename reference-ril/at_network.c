@@ -462,7 +462,7 @@ static void requestSetNetworlSelectionManual(void* data, size_t datalen, RIL_Tok
     }
 
     operator=(RIL_NetworkOperator*) data;
-    ret = asprintf(&cmd, "AT+COPS=1,2,\"%s\",%d", operator->operatorNumeric, (int)operator->act);
+    ret = asprintf(&cmd, "AT+COPS=1,%s,%d", operator->operatorNumeric, (int)operator->act);
     if (ret < 0) {
         RLOGE("Failed to allocate memory");
         ril_err = RIL_E_NO_MEMORY;
