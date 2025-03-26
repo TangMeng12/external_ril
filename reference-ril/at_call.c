@@ -238,6 +238,7 @@ static void requestCallSelection(void* data, size_t datalen, RIL_Token t, int re
     case RIL_REQUEST_EXPLICIT_CALL_TRANSFER:
         // "Transfers call"
         atCommand = transfer;
+        break;
     default:
         assert(0);
     }
