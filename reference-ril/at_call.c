@@ -56,6 +56,9 @@ static int clccStateToRILState(int state, RIL_CallState* p_state)
     case 5:
         *p_state = RIL_CALL_WAITING;
         return 0;
+    case 6:
+        *p_state = RIL_CALL_DISCONNECT;
+        return 0;
     default:
         return -1;
     }
@@ -738,6 +741,110 @@ static void unsolicitedEccListChanged(const char* s)
     }
 
     RIL_onUnsolicitedResponse(RIL_UNSOL_EMERGENCY_NUMBER_LIST, ecc_list, count * sizeof(char*));
+    free(line);
+}
+
+static void unsolicitedCallStateChanged(const char* s)
+{
+    char *line = NULL, *p = NULL;
+    int count = 0;
+    int state;
+    int mode;
+    RIL_Call* p_calls = NULL;
+    RIL_Call** pp_calls = NULL;
+    int err = -1;
+
+    line = p = strdup(s);
+    if (!line) {
+        RLOGE("+CRING: Unable to allocate memory.");
+        return;
+    }
+
+    if (at_tok_start(&p) < 0) {
+        RLOGE("%s: invalid response string.", __func__);
+        free(line);
+        return;
+    }
+
+    if (at_tok_nextint(&p, &count) < 0) {
+        RLOGE("%s: Invalid call list count.", __func__);
+        free(line);
+        return;
+    }
+
+    pp_calls = (RIL_Call**)alloca(count * sizeof(RIL_Call*));
+    p_calls = (RIL_Call*)alloca(count * sizeof(RIL_Call));
+    memset(p_calls, 0, count * sizeof(RIL_Call));
+
+    for (int i = 0; i < count; i++) {
+        pp_calls[i] = &(p_calls[i]);
+        err = at_tok_nextint(&p, &(p_calls[i].index));
+        if (err < 0) {
+            RLOGE("%s: Failed to parse call index (%d).", __func__, i);
+            goto error;
+        }
+
+        err = at_tok_nextbool(&p, &(p_calls[i].isMT));
+        if (err < 0) {
+            RLOGE("%s: Failed to parse isMT (%d).", __func__, i);
+            goto error;
+        }
+
+        err = at_tok_nextint(&p, &state);
+        if (err < 0) {
+            RLOGE("%s, Failed to parse call state (%d)", __func__, i);
+            goto error;
+        }
+
+        err = clccStateToRILState(state, &(p_calls[i].state));
+        if (err < 0) {
+            RLOGE("%s: Failed to transform call state (%d).", __func__, i);
+            goto error;
+        }
+
+        err = at_tok_nextint(&p, &mode);
+        if (err < 0) {
+            RLOGE("%s: Failed to parse call mode (%d).", __func__, i);
+            goto error;
+        }
+
+        p_calls[i].isVoice = (mode == 0);
+
+        err = at_tok_nextbool(&p, &(p_calls[i].isMpty));
+        if (err < 0) {
+            RLOGE("%s: Failed to parse call mpty (%d).", __func__, i);
+            goto error;
+        }
+
+        if (at_tok_hasmore(&p)) {
+            err = at_tok_nextstr(&p, &(p_calls[i].number));
+            if (err < 0) {
+                RLOGW("%s: Tolerate null here (%d).", __func__, i);
+            }
+
+            // Some lame implementations return strings
+            // like "NOT AVAILABLE" in this line
+            if (p_calls[i].number != NULL
+                && 0 == strspn(p_calls[i].number, "+0123456789")) {
+                p_calls[i].number = NULL;
+            }
+
+            err = at_tok_nextint(&p, &(p_calls[i].toa));
+            if (err < 0) {
+                RLOGE("%s: Failed to parse call toa (%d).", __func__, i);
+                goto error;
+            }
+        }
+
+        p_calls[i].uusInfo = NULL;
+    }
+
+    RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_CALL_STATE_CHANGED, pp_calls, count * sizeof(RIL_Call*));
+    free(line);
+    return;
+
+error:
+    RLOGE("%s: call state changed unsolicited response error.", __func__);
     free(line);
 }
 
@@ -1574,13 +1681,16 @@ bool try_handle_unsol_call(const char* s)
 
     RLOGD("unsol call string: %s", s);
 
-    if (strStartsWith(s, "+CRING:")
-        || strStartsWith(s, "RING")
+    if (strStartsWith(s, "RING")
         || strStartsWith(s, "NO CARRIER")
         || strStartsWith(s, "+CCWA")
         || strStartsWith(s, "ALERTING")) {
         RLOGI("Receive call state changed URC");
         RIL_onUnsolicitedResponse(RIL_UNSOL_RESPONSE_CALL_STATE_CHANGED, NULL, 0);
+        ret = true;
+    } else if (strStartsWith(s, "+CRING: ")) {
+        RLOGI("Receive call state changed URC with data");
+        unsolicitedCallStateChanged(s);
         ret = true;
     } else if (strStartsWith(s, "HOLD")) {
         RLOGI("Receive supplementary service URC(Remote HOLD)");
