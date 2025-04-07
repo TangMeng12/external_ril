@@ -163,3 +163,7 @@
     { RIL_REQUEST_ENABLE_MODEM, dispatchInts, responseVoid },
     { RIL_REQUEST_GET_MODEM_STATUS, dispatchVoid, responseInts },
     { RIL_REQUEST_DEFLECT_CALL, dispatchString, responseVoid },
+    { RIL_REQUEST_SUPPRESS_MESSAGE_REPORT, dispatchInts, responseVoid },
+    { RIL_REQUEST_SET_SIGNAL_THRESHOLD, dispatchInts, responseVoid },
+    { RIL_REQUEST_SET_DEVICE_STATIONARY, dispatchInts, responseVoid },
+    { RIL_REQUEST_SET_DEVICE_STATIONARY_JUDGE_SCOPE, dispatchInts, responseVoid },

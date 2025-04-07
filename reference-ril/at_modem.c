@@ -296,6 +296,154 @@ static void requestGetModemStatus(void* data, size_t datalen, RIL_Token t)
 
 static uint64_t s_last_activity_info_query = 0;
 
+static void requestSuppressMessageReport(void* data, size_t datalen, RIL_Token t)
+{
+    int msg_list;
+    int msg_list_value;
+    char cmd[50] = { 0 };
+    ATResponse* p_response = NULL;
+    int err = -1;
+    RIL_Errno ril_err = RIL_E_SUCCESS;
+
+    if (data == NULL) {
+        RLOGE("requestSuppressMessageReport data is null!");
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+        return;
+    }
+
+    if (datalen != sizeof(int) * 2) {
+        RLOGE("requestSuppressMessageReport data len is wrong!");
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+        return;
+    }
+
+    msg_list = ((int*)data)[0];
+    msg_list_value = ((int*)data)[1];
+
+    snprintf(cmd, sizeof(cmd), "AT+SUPPRESSMSG=%d,%d", msg_list, msg_list_value);
+    err = at_send_command(cmd, &p_response);
+
+    if (err < 0 || !p_response || p_response->success != AT_OK) {
+        RLOGE("Failure occurred in sending %s due to: %s", cmd, at_io_err_str(err));
+        ril_err = RIL_E_GENERIC_FAILURE;
+    }
+
+    RIL_onRequestComplete(t, ril_err, NULL, 0);
+    at_response_free(p_response);
+    p_response = NULL;
+}
+
+static void requestSetSignalThreshold(void* data, size_t datalen, RIL_Token t)
+{
+    int type;
+    int signal_threshold[4];
+    char cmd[50] = { 0 };
+    ATResponse* p_response = NULL;
+    int err = -1;
+    RIL_Errno ril_err = RIL_E_SUCCESS;
+
+    if (data == NULL) {
+        RLOGE("requestSetSignalThreshold data is null!");
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+        return;
+    }
+
+    if (datalen != sizeof(int) * 5) {
+        RLOGE("requestSetSignalThreshold data len is wrong!");
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+        return;
+    }
+
+    type = ((int*)data)[0];
+    signal_threshold[0] = ((int*)data)[1];
+    signal_threshold[1] = ((int*)data)[2];
+    signal_threshold[2] = ((int*)data)[3];
+    signal_threshold[3] = ((int*)data)[4];
+
+    snprintf(cmd, sizeof(cmd), "AT+SIGNALTHRESHOLD=%d,%d,%d,%d,%d", type, signal_threshold[0],
+        signal_threshold[1], signal_threshold[2], signal_threshold[3]);
+    err = at_send_command(cmd, &p_response);
+
+    if (err < 0 || !p_response || p_response->success != AT_OK) {
+        RLOGE("Failure occurred in sending %s due to: %s", cmd, at_io_err_str(err));
+        ril_err = RIL_E_GENERIC_FAILURE;
+    }
+
+    RIL_onRequestComplete(t, ril_err, NULL, 0);
+    at_response_free(p_response);
+    p_response = NULL;
+}
+
+static void requestSetModemStationary(void* data, size_t datalen, RIL_Token t)
+{
+    int enable;
+    char cmd[50] = { 0 };
+    ATResponse* p_response = NULL;
+    int err = -1;
+    RIL_Errno ril_err = RIL_E_SUCCESS;
+
+    if (data == NULL) {
+        RLOGE("requestSetModemStationary data is null!");
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+        return;
+    }
+
+    if (datalen != sizeof(int)) {
+        RLOGE("requestSetModemStationary data len is wrong!");
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+        return;
+    }
+
+    enable = ((int*)data)[0];
+
+    snprintf(cmd, sizeof(cmd), "AT+STATIONARY=%d", enable);
+    err = at_send_command(cmd, &p_response);
+
+    if (err < 0 || !p_response || p_response->success != AT_OK) {
+        RLOGE("Failure occurred in sending %s due to: %s", cmd, at_io_err_str(err));
+        ril_err = RIL_E_GENERIC_FAILURE;
+    }
+
+    RIL_onRequestComplete(t, ril_err, NULL, 0);
+    at_response_free(p_response);
+    p_response = NULL;
+}
+
+static void requestSetModemStationaryThreshold(void* data, size_t datalen, RIL_Token t)
+{
+    int value;
+    char cmd[50] = { 0 };
+    ATResponse* p_response = NULL;
+    int err = -1;
+    RIL_Errno ril_err = RIL_E_SUCCESS;
+
+    if (data == NULL) {
+        RLOGE("requestSetModemStationaryThreshold data is null!");
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+        return;
+    }
+
+    if (datalen != sizeof(int)) {
+        RLOGE("requestSetModemStationaryThreshold data len is wrong!");
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+        return;
+    }
+
+    value = ((int*)data)[0];
+
+    snprintf(cmd, sizeof(cmd), "AT+AUTOSTATIONARYTHRESHOLD=%d", value);
+    err = at_send_command(cmd, &p_response);
+
+    if (err < 0 || !p_response || p_response->success != AT_OK) {
+        RLOGE("Failure occurred in sending %s due to: %s", cmd, at_io_err_str(err));
+        ril_err = RIL_E_GENERIC_FAILURE;
+    }
+
+    RIL_onRequestComplete(t, ril_err, NULL, 0);
+    at_response_free(p_response);
+    p_response = NULL;
+}
+
 static void requestGetActivityInfo(void* data, size_t datalen, RIL_Token t)
 {
     (void)data;
@@ -662,6 +810,18 @@ void on_request_modem(int request, void* data, size_t datalen, RIL_Token t)
         break;
     case RIL_REQUEST_GET_MODEM_STATUS:
         requestGetModemStatus(data, datalen, t);
+        break;
+    case RIL_REQUEST_SUPPRESS_MESSAGE_REPORT:
+        requestSuppressMessageReport(data, datalen, t);
+        break;
+    case RIL_REQUEST_SET_SIGNAL_THRESHOLD:
+        requestSetSignalThreshold(data, datalen, t);
+        break;
+    case RIL_REQUEST_SET_DEVICE_STATIONARY:
+        requestSetModemStationary(data, datalen, t);
+        break;
+    case RIL_REQUEST_SET_DEVICE_STATIONARY_JUDGE_SCOPE:
+        requestSetModemStationaryThreshold(data, datalen, t);
         break;
     default:
         RLOGE("Request not supported");
