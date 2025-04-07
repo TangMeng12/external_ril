@@ -1706,6 +1706,10 @@ bool try_handle_unsol_sim(const char* s)
         free(response[2]);
         free(line);
         ret = true;
+    } else if (strStartsWith(s, "^MSIMINVALID")) {
+        RLOGI("sim invalid");
+        RIL_onUnsolicitedResponse(RIL_UNSOL_SIM_INVALID, NULL, 0);
+        ret = true;
     } else {
         RLOGD("Can't match any unsol sim handlers");
     }
