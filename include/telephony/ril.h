@@ -4839,6 +4839,67 @@ typedef struct {
 
 #define RIL_REQUEST_DEFLECT_CALL 148
 
+/**
+ * RIL_REQUEST_SUPPRESS_MESSAGE_REPORT
+ *
+ * suppress modem report unsol message when screen off
+ * valid params:
+ * suppressed message list(int):
+ * bit1:RIL_UNSOL_RESPONSE_NETWORK_STATE_CHANGED
+ * bit2:RIL_UNSOL_RESPONSE_IMS_NETWORK_STATE_CHANGED
+ * bit3:RIL_UNSOL_CELL_INFO_LIST
+ * bit4:RIL_UNSOL_SIGNAL_STRENGTH
+ *
+ * suppress or not suppress control(int):
+ * 1-enable,0-disable for every bit
+ *
+ * Valid errors:
+ *  RIL_E_SUCCESS
+ *  RIL_E_GENERIC_FAILURE
+ *
+ */
+#define RIL_REQUEST_SUPPRESS_MESSAGE_REPORT 149
+
+/**
+ * RIL_REQUEST_SET_SIGNAL_THRESHOLD
+ *
+ * set signal threshold for every signal level
+ * "data" is int *
+ *
+ * Valid errors:
+ *  RIL_E_SUCCESS
+ *  RIL_E_GENERIC_FAILURE
+ *
+ */
+#define RIL_REQUEST_SET_SIGNAL_THRESHOLD 150
+
+/**
+ * RIL_REQUEST_SET_DEVICE_STATIONARY
+ *
+ * set modem to stationary directly.modem will adjust neighboring cell measurement strategy
+ * "data" is int,0-enable,1-disable
+ *
+ * Valid errors:
+ *  RIL_E_SUCCESS
+ *  RIL_E_GENERIC_FAILURE
+ *
+ */
+#define RIL_REQUEST_SET_DEVICE_STATIONARY 151
+
+/**
+ * RIL_REQUEST_SET_DEVICE_STATIONARY_JUDGE_SCOPE
+ *
+ * set modem to stationary judge threshold.
+ * modem will judge stationary auto based on the judgement threshold
+ * "data" is int,means scope signal allowable maximum range of fluctuations
+ *
+ * Valid errors:
+ *  RIL_E_SUCCESS
+ *  RIL_E_GENERIC_FAILURE
+ *
+ */
+#define RIL_REQUEST_SET_DEVICE_STATIONARY_JUDGE_SCOPE 152
+
 // SECOND STEP BASE
 #define RIL_SECOND_REQUEST_BASE 200
 
@@ -5337,6 +5398,15 @@ RIL_REQUEST_IMS_REG_STATE_CHANGE
  *
  */
 #define RIL_UNSOL_RESPONSE_IMS_NETWORK_STATE_CHANGED 1037
+/**
+ * RIL_UNSOL_SIM_INVALID
+ *
+ * Indicates that modem detect sim invalid and register won't work.
+ *
+ * "data" is NULL
+ *
+ */
+#define RIL_UNSOL_SIM_INVALID 1038
 
 /**
  * RIL_UNSOL_STK_CC_ALPHA_NOTIFY

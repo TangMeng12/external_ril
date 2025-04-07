@@ -53,7 +53,7 @@
     { RIL_UNSOL_CELL_INFO_LIST, responseCellInfoList, WAKE_PARTIAL },
     // 1037
     { RIL_UNSOL_RESPONSE_IMS_NETWORK_STATE_CHANGED, responseVoid, WAKE_PARTIAL },
-    { 1038, responseVoid, WAKE_PARTIAL },
+    { RIL_UNSOL_SIM_INVALID, responseVoid, WAKE_PARTIAL },
     { 1039, responseVoid, WAKE_PARTIAL },
     { 1040, responseVoid, WAKE_PARTIAL },
     { 1041, responseVoid, WAKE_PARTIAL },
