@@ -4968,9 +4968,9 @@ RIL_REQUEST_IMS_REG_STATE_CHANGE
 #define RIL_UNSOL_RESPONSE_CALL_STATE_CHANGED 1001
 
 /**
- * RIL_UNSOL_RESPONSE_VOICE_NETWORK_STATE_CHANGED
+ * RIL_UNSOL_RESPONSE_NETWORK_STATE_CHANGED
  *
- * Called when the voice network state changed
+ * Called when the network state changed
  *
  * Callee will invoke the following requests on main thread:
  *
@@ -4982,7 +4982,7 @@ RIL_REQUEST_IMS_REG_STATE_CHANGE
  * FIXME should this happen when SIM records are loaded? (eg, for
  * EONS)
  */
-#define RIL_UNSOL_RESPONSE_VOICE_NETWORK_STATE_CHANGED 1002
+#define RIL_UNSOL_RESPONSE_NETWORK_STATE_CHANGED 1002
 
 /**
  * RIL_UNSOL_RESPONSE_NEW_SMS

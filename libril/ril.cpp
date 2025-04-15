@@ -255,6 +255,7 @@ static int responseSimRefresh(Parcel& p, void* response, size_t responselen);
 static int responseCellInfoList(Parcel& p, void* response, size_t responselen);
 static int responseStringsWithVersion(int version, Parcel& p, void* response, size_t responselen);
 static int responseActivityData(Parcel& p, void* response, size_t responselen);
+static int responseEccList(Parcel& p, void* response, size_t responselen);
 static int decodeVoiceRadioTechnology(RIL_RadioState radioState);
 static RIL_RadioState processRadioState(RIL_RadioState newRadioState);
 
@@ -2353,6 +2354,23 @@ static int responseActivityData(Parcel& p, void* response, size_t responselen)
     return 0;
 }
 
+static int responseEccList(Parcel& p, void* response, size_t responselen)
+{
+    if (response == NULL) {
+        RLOGE("%s: invalid response: NULL.", __func__);
+        return RIL_ERRNO_INVALID_RESPONSE;
+    }
+
+    char** p_cur = (char**)response;
+    int num = responselen / sizeof(char*);
+    p.writeInt32(num);
+    for (int i = 0; i < num; i++) {
+        writeStringToParcel(p, p_cur[i]);
+    }
+
+    return 0;
+}
+
 /**
  * A write on the wakeup fd is done just to pop us out of select()
  * We empty the buffer here and then ril_event will reset the timers on the
@@ -3419,8 +3437,8 @@ extern "C" const char* requestToString(int request)
         return "UNSOL_RESPONSE_RADIO_STATE_CHANGED";
     case RIL_UNSOL_RESPONSE_CALL_STATE_CHANGED:
         return "UNSOL_RESPONSE_CALL_STATE_CHANGED";
-    case RIL_UNSOL_RESPONSE_VOICE_NETWORK_STATE_CHANGED:
-        return "UNSOL_RESPONSE_VOICE_NETWORK_STATE_CHANGED";
+    case RIL_UNSOL_RESPONSE_NETWORK_STATE_CHANGED:
+        return "RIL_UNSOL_RESPONSE_NETWORK_STATE_CHANGED";
     case RIL_UNSOL_RESPONSE_NEW_SMS:
         return "UNSOL_RESPONSE_NEW_SMS";
     case RIL_UNSOL_RESPONSE_NEW_SMS_STATUS_REPORT:
