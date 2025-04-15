@@ -1681,7 +1681,7 @@ bool try_handle_unsol_net(const char* s)
     } else if (strStartsWith(s, "+CREG:") || strStartsWith(s, "+CGREG:")) {
         RLOGI("Receive EPS network state change URC");
         RIL_onUnsolicitedResponse(
-            RIL_UNSOL_RESPONSE_VOICE_NETWORK_STATE_CHANGED, NULL, 0);
+            RIL_UNSOL_RESPONSE_NETWORK_STATE_CHANGED, NULL, 0);
         ret = true;
     }
 #define CGFPCCFG "%CGFPCCFG:"
