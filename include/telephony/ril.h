@@ -361,6 +361,12 @@ typedef enum {
     RIL_UUS_DCS_IA5c = 4 /* IA5 characters */
 } RIL_UUS_DCS;
 
+typedef struct {
+    uint32_t abnormal_type_id;
+    int32_t len;
+    char* st;
+} RIL_ModemInfo;
+
 /* User-to-User Signaling Information defined in 3GPP 23.087 v8.0
  * This data is passed in RIL_ExtensionRecord and rec contains this
  * structure when type is RIL_UUS_INFO_EXT_REC */
@@ -5450,6 +5456,8 @@ RIL_REQUEST_IMS_REG_STATE_CHANGE
 /***********************************************************************/
 
 #define RIL_UNSOL_EMERGENCY_NUMBER_LIST 1102
+
+#define RIL_UNSOL_ABNORMAL_EVENT 1104
 
 // CUS STEP BASE
 #define RIL_CUS_REQUEST_BASE 2000

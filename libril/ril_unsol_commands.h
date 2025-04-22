@@ -119,3 +119,5 @@
     { 1100, responseVoid, WAKE_PARTIAL },
     { 1101, responseVoid, WAKE_PARTIAL },
     { RIL_UNSOL_EMERGENCY_NUMBER_LIST, responseEccList, WAKE_PARTIAL },
+    { 1103, responseVoid, WAKE_PARTIAL },
+    { RIL_UNSOL_ABNORMAL_EVENT, responseAbnormalInfo, WAKE_PARTIAL },
