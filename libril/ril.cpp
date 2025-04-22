@@ -258,6 +258,7 @@ static int responseActivityData(Parcel& p, void* response, size_t responselen);
 static int responseEccList(Parcel& p, void* response, size_t responselen);
 static int decodeVoiceRadioTechnology(RIL_RadioState radioState);
 static RIL_RadioState processRadioState(RIL_RadioState newRadioState);
+static int responseAbnormalInfo(Parcel& p, void* response, size_t responselen);
 
 extern "C" void RIL_onUnsolicitedResponse(int unsolResponse, const void* data,
     size_t datalen);
@@ -2819,6 +2820,32 @@ static RIL_RadioState processRadioState(RIL_RadioState newRadioState)
     }
 
     return newRadioState;
+}
+
+static int responseAbnormalInfo(Parcel& p, void* response, size_t responselen)
+{
+    if (response == NULL) {
+        RLOGE("invalid response: NULL");
+        return RIL_ERRNO_INVALID_RESPONSE;
+    }
+
+    if (responselen != sizeof(RIL_ModemInfo)) {
+        RLOGE("invalid response length was %d expected %d", (int)responselen,
+            (int)sizeof(RIL_ModemInfo));
+        return RIL_ERRNO_INVALID_RESPONSE;
+    }
+
+    RIL_ModemInfo* p_cur = (RIL_ModemInfo*)response;
+    p.writeInt32(p_cur->abnormal_type_id);
+    p.writeInt32(p_cur->len);
+    writeStringToParcel(p, p_cur->st);
+
+    startResponse;
+    appendPrintBuf("abnormal_type_id=%ld,len=%ld,st=%s",
+        p_cur->abnormal_type_id, p_cur->len, (char*)p_cur->st);
+    closeResponse;
+
+    return 0;
 }
 
 extern "C" void RIL_onUnsolicitedResponse(int unsolResponse, const void* data,

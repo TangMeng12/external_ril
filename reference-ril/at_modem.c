@@ -832,6 +832,121 @@ void on_request_modem(int request, void* data, size_t datalen, RIL_Token t)
     RLOGD("On request modem end");
 }
 
+static void on_modem_debug_info_unsol_resp(const char* s)
+{
+    assert(s);
+
+    char* line = (char*)s;
+
+    int err;
+
+    /* according to Marconi AT, the format is:
+     * ^MDBGINFO: <sn>, <eid>, <page>,<pages>,<buf><CR><LF>
+     */
+    int sn;
+    int eventid;
+    int page;
+    int page_cont;
+    int len;
+    char* buf;
+    static RIL_ModemInfo modem_info;
+    bool ret = true;
+
+    buf = NULL;
+
+    RLOGI("abnormal:%s:%s", __func__, line);
+
+    err = at_tok_start(&line);
+
+    if (err != 0) {
+        RLOGE("Failed to start parsing token");
+        ret = false;
+        goto on_exit;
+    }
+
+    err = at_tok_nextint(&line, &sn);
+
+    if (err != 0) {
+        RLOGE("Failed to parse token");
+        ret = false;
+        goto on_exit;
+    }
+
+    err = at_tok_nextint(&line, &eventid);
+
+    if (err != 0) {
+        RLOGE("Failed to parse token");
+        ret = false;
+        goto on_exit;
+    }
+
+    err = at_tok_nextint(&line, &page);
+
+    if (err != 0) {
+        RLOGE("Failed to parse token");
+        ret = false;
+        goto on_exit;
+    }
+
+    err = at_tok_nextint(&line, &page_cont);
+
+    if (err != 0) {
+        RLOGE("Failed to parse token");
+        ret = false;
+        goto on_exit;
+    }
+
+    err = at_tok_nextstr(&line, &buf);
+
+    if (err != 0) {
+        RLOGE("Failed to parse token");
+        ret = false;
+        goto on_exit;
+    }
+
+    if (page < 1 || page_cont < 1 || page_cont > 10) {
+        RLOGE("MDBGINFO:page or pages error");
+        ret = false;
+        goto on_exit;
+    }
+
+    if (page == 1) {
+        memset(&modem_info, 0, sizeof(RIL_ModemInfo));
+
+        modem_info.abnormal_type_id = eventid;
+        len = strlen(buf) * page_cont;
+        modem_info.len = strlen(buf);
+        modem_info.st = malloc(len + 1);
+
+        memset(modem_info.st, 0, len + 1);
+        memcpy(modem_info.st, buf, strlen(buf));
+    } else if ((page <= page_cont) && (modem_info.abnormal_type_id == eventid)) {
+        memcpy(modem_info.st + modem_info.len, buf, strlen(buf));
+        modem_info.len = modem_info.len + strlen(buf);
+    } else {
+        ret = false;
+        RLOGE("MDBGINFO:memcpy buf error");
+        goto on_exit;
+    }
+
+    RLOGD("On modem debug info URC, sn: %d, eventid: %d, page: %d, pages: %d, buf: %s", sn,
+        eventid, page, pages, buf);
+
+    if (page == page_cont) {
+        RIL_onUnsolicitedResponse(RIL_UNSOL_ABNORMAL_EVENT, &modem_info, sizeof(RIL_ModemInfo));
+        RLOGI("MDBGINFO:report ofono");
+        free(modem_info.st);
+        memset(&modem_info, 0, sizeof(RIL_ModemInfo));
+    }
+
+on_exit:
+    if (ret == false) {
+        free(modem_info.st);
+        memset(&modem_info, 0, sizeof(RIL_ModemInfo));
+        RLOGE("Failed to handle ringback tone URC");
+    }
+}
+
 bool try_handle_unsol_modem(const char* s)
 {
     bool ret = false;
@@ -864,6 +979,12 @@ bool try_handle_unsol_modem(const char* s)
     } else if (strStartsWith(s, "+CFUN: 0")) {
         RLOGI("Receive radio off URC");
         setRadioState(RADIO_STATE_OFF);
+        ret = true;
+    } else if (strStartsWith(s, "^MDBGINFO")) {
+        RLOGI("Receive modem debug info URC");
+
+        on_modem_debug_info_unsol_resp(s);
+
         ret = true;
     } else {
         RLOGD("Can't match any unsol modem handlers");
