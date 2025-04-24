@@ -5447,6 +5447,10 @@ RIL_REQUEST_IMS_REG_STATE_CHANGE
  */
 #define RIL_UNSOL_MODEM_RESTART 1047
 
+#define RIL_UNSOL_EMERGENCY_NUMBER_LIST 1052
+
+#define RIL_UNSOL_ABNORMAL_EVENT 1054
+
 #define RIL_UNSOL_PHYSICAL_CHANNEL_CONFIGS 1051
 
 /***********************************************************************/
@@ -5454,10 +5458,6 @@ RIL_REQUEST_IMS_REG_STATE_CHANGE
 #define RIL_UNSOL_RESPONSE_RADIO_CONFIG_BASE 1100
 
 /***********************************************************************/
-
-#define RIL_UNSOL_EMERGENCY_NUMBER_LIST 1102
-
-#define RIL_UNSOL_ABNORMAL_EVENT 1104
 
 // CUS STEP BASE
 #define RIL_CUS_REQUEST_BASE 2000
