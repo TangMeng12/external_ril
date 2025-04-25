@@ -186,6 +186,7 @@ static inline req_category_t request2eventtype(int request)
     case RIL_REQUEST_SET_SIGNAL_THRESHOLD:
     case RIL_REQUEST_SET_DEVICE_STATIONARY:
     case RIL_REQUEST_SET_DEVICE_STATIONARY_JUDGE_SCOPE:
+    case RIL_REQUEST_ENABLE_ABNORMAL_EVENT:
         type = REQ_MODEM_TYPE;
         break;
     case RIL_REQUEST_SEND_SMS:
@@ -615,7 +616,8 @@ static void onRequest(int request, void* data, size_t datalen, RIL_Token t)
         && request != RIL_REQUEST_GET_SIM_STATUS
         && request != RIL_REQUEST_ENABLE_MODEM
         && request != RIL_REQUEST_GET_MODEM_STATUS
-        && request != RIL_REQUEST_SET_EMERGENCY_NUMBER) {
+        && request != RIL_REQUEST_SET_EMERGENCY_NUMBER
+        && request != RIL_REQUEST_ENABLE_ABNORMAL_EVENT) {
         RLOGE("Radio unavailable");
         RIL_onRequestComplete(t, RIL_E_RADIO_NOT_AVAILABLE, NULL, 0);
         return;
@@ -652,6 +654,7 @@ static void onRequest(int request, void* data, size_t datalen, RIL_Token t)
         case RIL_REQUEST_ENABLE_MODEM:
         case RIL_REQUEST_GET_MODEM_STATUS:
         case RIL_REQUEST_GSM_GET_BROADCAST_SMS_CONFIG:
+        case RIL_REQUEST_ENABLE_ABNORMAL_EVENT:
             // Process all the above, even though the radio is off
             break;
 

@@ -468,6 +468,57 @@ static void requestSetModemStationaryThreshold(void* data, size_t datalen, RIL_T
     p_response = NULL;
 }
 
+static void requestEnableAbnormalEvents(void* data, size_t datalen, RIL_Token t)
+{
+    ATResponse* p_response = NULL;
+    RIL_Errno ril_err = RIL_E_SUCCESS;
+    char* cmd = NULL;
+    int enable, module_mask, from_event_id, to_event_id;
+    int err = -1;
+
+    if (data == NULL) {
+        RLOGE("%s: data is null!", __func__);
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+        return;
+    }
+
+    if (datalen != sizeof(int) * 4) {
+        RLOGE("%s: data len is wrong!", __func__);
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
+        return;
+    }
+
+    enable = ((int*)data)[0];
+    module_mask = ((int*)data)[1];
+    from_event_id = ((int*)data)[2];
+    to_event_id = ((int*)data)[3];
+
+    syslog(LOG_DEBUG, "%s: enable: %d, module_mask: %d, from_event_id: %d, to_event_id: %d",
+        __func__, enable, module_mask, from_event_id, to_event_id);
+
+    if (asprintf(&cmd, "AT^MDBGINFOEN=%d,%d,%d,%d",
+            enable, module_mask, from_event_id, to_event_id)
+        < 0) {
+        RLOGE("%s: Failed to allocate memory.", __func__);
+        RIL_onRequestComplete(t, RIL_E_NO_MEMORY, NULL, 0);
+        goto on_exit;
+    }
+
+    err = at_send_command(cmd, &p_response);
+    if (err != AT_ERROR_OK || !p_response || p_response->success != AT_OK) {
+        RLOGE("%s: Failure occurred in sending %s, ret: %s, p_response: %p, final response: %s",
+            __func__, cmd, at_io_err_str(err), p_response,
+            p_response ? p_response->finalResponse : "null");
+        ril_err = RIL_E_GENERIC_FAILURE;
+        goto on_exit;
+    }
+
+on_exit:
+    RIL_onRequestComplete(t, ril_err, NULL, 0);
+    at_response_free(p_response);
+    free(cmd);
+}
+
 static void requestGetActivityInfo(void* data, size_t datalen, RIL_Token t)
 {
     (void)data;
@@ -969,6 +1020,9 @@ void on_request_modem(int request, void* data, size_t datalen, RIL_Token t)
         break;
     case RIL_REQUEST_SET_DEVICE_STATIONARY_JUDGE_SCOPE:
         requestSetModemStationaryThreshold(data, datalen, t);
+        break;
+    case RIL_REQUEST_ENABLE_ABNORMAL_EVENT:
+        requestEnableAbnormalEvents(data, datalen, t);
         break;
     default:
         RLOGE("Request not supported");

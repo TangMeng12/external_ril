@@ -5021,6 +5021,8 @@ RIL_REQUEST_IMS_REG_STATE_CHANGE
 
 #define RIL_REQUEST_DIAL_CONFERENCE (RIL_IMS_REQUEST_BASE + 6)
 
+#define RIL_REQUEST_ENABLE_ABNORMAL_EVENT (RIL_IMS_REQUEST_BASE + 7)
+
 /***********************************************************************/
 #define RIL_UNSOL_RESPONSE_BASE 1000
 
