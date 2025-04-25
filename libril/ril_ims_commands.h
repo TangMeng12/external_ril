@@ -23,3 +23,4 @@
     { RIL_REQUEST_ADD_PARTICIPANT, dispatchConferenceInvite, responseVoid },
     { 505, NULL, NULL },
     { RIL_REQUEST_DIAL_CONFERENCE, dispatchConferenceInvite, responseVoid },
+    { RIL_REQUEST_ENABLE_ABNORMAL_EVENT, dispatchInts, responseVoid },
