@@ -241,6 +241,7 @@ static void requestSimOpenChannel(void* data, size_t datalen, RIL_Token t)
     char complex = 0;
     char* line = NULL;
     char* aidPtr = NULL;
+    int32_t error_code = 0;
     RIL_Errno ril_err = RIL_E_SUCCESS;
     RIL_Sim_Open_Channel ril_response = { 0 };
 
@@ -262,6 +263,12 @@ static void requestSimOpenChannel(void* data, size_t datalen, RIL_Token t)
     if (err != AT_ERROR_OK || !p_response || p_response->success != AT_OK) {
         RLOGE("Error %d opening logical channel: %d",
             err, p_response ? p_response->success : 0);
+        if (p_response && !strcmp(p_response->finalResponse, "+CME ERROR: 4")) {
+            line = p_response->p_intermediates->line;
+            if (sscanf(line, "%" SCNd32, &error_code) != 1) {
+                RLOGE("%s: Failed to read modem error code, use default error code (0)", __func__);
+            }
+        }
         ril_err = RIL_E_GENERIC_FAILURE;
         goto on_exit;
     }
@@ -277,8 +284,9 @@ static void requestSimOpenChannel(void* data, size_t datalen, RIL_Token t)
     ril_response.session_id = session_id;
 
 on_exit:
-    RIL_onRequestComplete(t, ril_err, ril_err == RIL_E_SUCCESS ? &ril_response : NULL,
-        ril_err == RIL_E_SUCCESS ? sizeof(ril_response) : 0);
+    if (ril_err != RIL_E_SUCCESS)
+        ril_response.session_id = error_code;
+    RIL_onRequestComplete(t, ril_err, &ril_response, sizeof(ril_response));
     at_response_free(p_response);
     free(cmd);
 }
@@ -288,6 +296,8 @@ static void requestSimCloseChannel(void* data, size_t datalen, RIL_Token t)
     ATResponse* p_response = NULL;
     RIL_Errno ril_err = RIL_E_SUCCESS;
     int32_t session_id;
+    int error_code = 0;
+    char* line = NULL;
     int err = -1;
     char* cmd = NULL;
 
@@ -309,15 +319,28 @@ static void requestSimCloseChannel(void* data, size_t datalen, RIL_Token t)
         goto on_exit;
     }
 
-    err = at_send_command_singleline(cmd, "+CCHC", &p_response);
+    err = at_send_command_singleline(cmd, "+CCHC: ", &p_response);
     if (err != AT_ERROR_OK || !p_response || p_response->success != AT_OK) {
         RLOGE("Failure occurred in sending %s due to: %s", cmd, at_io_err_str(err));
+        if (p_response && !strcmp(p_response->finalResponse, "+CME ERROR: 4")) {
+            line = p_response->p_intermediates->line;
+            err = at_tok_start(&line);
+            if (err < 0) {
+                RLOGE("Fail to parse error line in %s", __func__);
+            }
+
+            err = at_tok_nextint(&line, &error_code);
+            if (err < 0) {
+                RLOGE("Fail to parse error code in %s, use default error (0)", __func__);
+            }
+        }
         ril_err = RIL_E_GENERIC_FAILURE;
         goto on_exit;
     }
 
 on_exit:
-    RIL_onRequestComplete(t, ril_err, NULL, 0);
+    RIL_onRequestComplete(t, ril_err, ril_err == RIL_E_SUCCESS ? NULL : &error_code,
+        ril_err == RIL_E_SUCCESS ? 0 : sizeof(int*));
     at_response_free(p_response);
     free(cmd);
 }
@@ -330,6 +353,7 @@ static void requestSimTransmitApduChannel(void* data,
     int err;
     int len = 0;
     char* cmd = NULL;
+    int error_code = 0;
     char* line = NULL;
     int ret = -1;
     size_t cmd_size;
@@ -354,10 +378,22 @@ static void requestSimTransmitApduChannel(void* data,
         goto on_exit;
     }
 
-    err = at_send_command_singleline(cmd, "+CGLA:", &p_response);
+    err = at_send_command_singleline(cmd, "+CGLA: ", &p_response);
     if (err != AT_ERROR_OK || !p_response || p_response->success != AT_OK) {
         RLOGE("Error %d transmitting APDU: %d",
             err, p_response ? p_response->success : 0);
+        if (p_response && !strcmp(p_response->finalResponse, "+CME ERROR: 4")) {
+            line = p_response->p_intermediates->line;
+            err = at_tok_start(&line);
+            if (err < 0) {
+                RLOGE("Fail to parse error line in %s", __func__);
+            }
+
+            err = at_tok_nextint(&line, &error_code);
+            if (err < 0) {
+                RLOGE("Fail to parse error code in %s, use default error (0)", __func__);
+            }
+        }
         ril_err = RIL_E_GENERIC_FAILURE;
         goto on_exit;
     }
@@ -400,8 +436,9 @@ static void requestSimTransmitApduChannel(void* data,
     sr.simResponse[len - 4] = '\0';
 
 on_exit:
-    RIL_onRequestComplete(t, ril_err, ril_err == RIL_E_SUCCESS ? &sr : NULL,
-        ril_err == RIL_E_SUCCESS ? sizeof(sr) : 0);
+    if (ril_err != RIL_E_SUCCESS)
+        sr.sw1 = error_code;
+    RIL_onRequestComplete(t, ril_err, &sr, sizeof(sr));
     at_response_free(p_response);
     free(cmd);
 }
@@ -415,6 +452,7 @@ static void requestTransmitApduBasic(void* data, size_t datalen, RIL_Token t)
     char* cmd = NULL;
     char* line = NULL;
     int ret = -1;
+    int error_code = 0;
     RIL_SIM_APDU* p_args = NULL;
     ATResponse* p_response = NULL;
     RIL_Errno ril_err = RIL_E_SUCCESS;
@@ -460,9 +498,21 @@ static void requestTransmitApduBasic(void* data, size_t datalen, RIL_Token t)
         }
     }
 
-    err = at_send_command_singleline(cmd, "+CSIM:", &p_response);
+    err = at_send_command_singleline(cmd, "+CSIM: ", &p_response);
     if (err != AT_ERROR_OK || !p_response || p_response->success != AT_OK) {
         RLOGE("Failure occurred in sending %s due to: %s", cmd, at_io_err_str(err));
+        if (p_response && !strcmp(p_response->finalResponse, "+CME ERROR: 4")) {
+            line = p_response->p_intermediates->line;
+            err = at_tok_start(&line);
+            if (err < 0) {
+                RLOGE("Fail to parse error line in %s", __func__);
+            }
+
+            err = at_tok_nextint(&line, &error_code);
+            if (err < 0) {
+                RLOGE("Fail to parse error code in %s, use default error (0)", __func__);
+            }
+        }
         ril_err = RIL_E_GENERIC_FAILURE;
         goto on_exit;
     }
@@ -498,8 +548,9 @@ static void requestTransmitApduBasic(void* data, size_t datalen, RIL_Token t)
     sr.simResponse[len - 4] = '\0';
 
 on_exit:
-    RIL_onRequestComplete(t, ril_err, ril_err == RIL_E_SUCCESS ? &sr : NULL,
-        ril_err == RIL_E_SUCCESS ? sizeof(sr) : 0);
+    if (ril_err != RIL_E_SUCCESS)
+        sr.sw1 = error_code;
+    RIL_onRequestComplete(t, ril_err, &sr, sizeof(sr));
     at_response_free(p_response);
     free(cmd);
 }
