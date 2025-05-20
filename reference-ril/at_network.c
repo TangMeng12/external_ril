@@ -311,7 +311,7 @@ static void requestGetPreferredNetworkType(void* data, size_t datalen, RIL_Token
     (void)datalen;
 
     int32_t preferred;
-    unsigned i;
+    int i;
 
     switch (query_ctec(getModemInfo(), NULL, &preferred)) {
     case -1: // Error or unable to parse
