@@ -316,7 +316,7 @@ static void requestGetModemStatus(void* data, size_t datalen, RIL_Token t)
 
     int modemState = s_modem_enabled;
     RLOGI("response RIL_REQUEST_GET_MODEM_STATUS, status is [%d]", modemState);
-    RIL_onRequestComplete(t, RIL_E_SUCCESS, &modemState, sizeof(int*));
+    RIL_onRequestComplete(t, RIL_E_SUCCESS, &modemState, sizeof(modemState));
     return;
 }
 
