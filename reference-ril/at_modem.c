@@ -689,7 +689,7 @@ static void requestOemHookStrings(void* data, size_t datalen, RIL_Token t)
 static void requestOemHookRaw(void* data, size_t datalen, RIL_Token t)
 {
     RIL_Errno ril_err = RIL_E_SUCCESS;
-    ATResponse* p_response;
+    ATResponse* p_response = NULL;
     int err = AT_ERROR_GENERIC;
     char* cmd = NULL;
     char* req_data = NULL;
