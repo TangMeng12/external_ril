@@ -24,6 +24,7 @@
 #include <net/if.h>
 #include <netinet/in.h>
 #include <stdio.h>
+#include <unistd.h>
 #include <sys/cdefs.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>

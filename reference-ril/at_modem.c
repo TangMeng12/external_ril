@@ -19,6 +19,7 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <unistd.h>
 #include <sys/cdefs.h>
 
 #include <telephony/librilutils.h>
