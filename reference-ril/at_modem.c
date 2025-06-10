@@ -1149,6 +1149,45 @@ on_exit:
     }
 }
 
+static void on_modem_oem_hook_raw_indication(const char* s)
+{
+    char *line, *p;
+    char* response;
+    uint8_t* resp_data;
+
+    response = NULL;
+    resp_data = NULL;
+    line = p = strdup(s);
+
+    if (line == NULL) {
+        RLOGE("%s: Failed to allocate memory", __func__);
+        return;
+    }
+
+    if (at_tok_start(&p) < 0) {
+        RLOGE("%s: invalid response string.", __func__);
+        free(line);
+        return;
+    }
+
+    if (at_tok_nextstr(&p, &response) < 0) {
+        RLOGE("%s: invalid oem unsol data.", __func__);
+        free(line);
+        return;
+    }
+
+    resp_data = convertHexStringToBytes(response, strlen(response));
+    if (resp_data == NULL) {
+        RLOGE("%s: Failed to convert hex string to bytes.", __func__);
+        free(line);
+        return;
+    }
+
+    RIL_onUnsolicitedResponse(RIL_UNSOL_OEM_HOOK_RAW, resp_data, strlen(response) / 2);
+    free(resp_data);
+    free(line);
+}
+
 bool try_handle_unsol_modem(const char* s)
 {
     bool ret = false;
@@ -1187,6 +1226,10 @@ bool try_handle_unsol_modem(const char* s)
 
         on_modem_debug_info_unsol_resp(s);
 
+        ret = true;
+    } else if (strStartsWith(s, "^UHOOKRAW: ")) {
+        RLOGI("Receive modem oem hook raw URC");
+        on_modem_oem_hook_raw_indication(s);
         ret = true;
     } else {
         RLOGD("Can't match any unsol modem handlers");
