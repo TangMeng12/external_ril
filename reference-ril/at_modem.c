@@ -1231,6 +1231,10 @@ bool try_handle_unsol_modem(const char* s)
         RLOGI("Receive modem oem hook raw URC");
         on_modem_oem_hook_raw_indication(s);
         ret = true;
+    } else if (strStartsWith(s, "^MDRESTART")) {
+        RLOGI("Receive modem restart URC");
+        RIL_onUnsolicitedResponse(RIL_UNSOL_MODEM_RESTART, NULL, 0);
+        ret = true;
     } else {
         RLOGD("Can't match any unsol modem handlers");
     }
