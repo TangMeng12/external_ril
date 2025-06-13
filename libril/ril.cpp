@@ -37,6 +37,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include <telephony/librilutils.h>
 #include <telephony/record_stream.h>
 #include <telephony/ril.h>
 #include <telephony/ril_log.h>
