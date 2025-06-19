@@ -427,7 +427,7 @@ static int processCommandBuffer(void* buffer, size_t buflen)
 
 static void invalidCommandBlock(RequestInfo* pRI)
 {
-    RLOGE("invalid command block for token %ld request %s",
+    RLOGE("invalid command block for token %" PRId32 " request %s",
         pRI->token, requestToString(pRI->pCI->requestNumber));
 }
 
@@ -2607,7 +2607,7 @@ static int responseActivityData(Parcel& p, void* response, size_t responselen)
         if (response == NULL) {
             RLOGE("invalid response: NULL");
         } else {
-            RLOGE("responseActivityData: invalid response length %d expecting len: %d",
+            RLOGE("responseActivityData: invalid response length %zu expecting len: %zu",
                 sizeof(RIL_ActivityStatsInfo), responselen);
         }
         return RIL_ERRNO_INVALID_RESPONSE;
