@@ -614,6 +614,7 @@ static void onRequest(int request, void* data, size_t datalen, RIL_Token t)
      * when RADIO_STATE_UNAVAILABLE. */
     if (getRadioState() == RADIO_STATE_UNAVAILABLE
         && request != RIL_REQUEST_GET_SIM_STATUS
+        && request != RIL_REQUEST_REPORT_STK_SERVICE_IS_RUNNING
         && request != RIL_REQUEST_ENABLE_MODEM
         && request != RIL_REQUEST_GET_MODEM_STATUS
         && request != RIL_REQUEST_SET_EMERGENCY_NUMBER
