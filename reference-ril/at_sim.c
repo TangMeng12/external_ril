@@ -1517,10 +1517,6 @@ static int parseProactiveCmdInd(char* response)
         break;
     }
 
-    if (getSIMStatus() == SIM_ABSENT && s_stkServiceRunning) {
-        s_stkServiceRunning = false;
-    }
-
     if (false == s_stkServiceRunning) {
         ret = STK_UNSOL_EVENT_UNKNOWN;
         s_stkUnsolResponse = (char*)calloc((strlen(response) + 1), sizeof(char));
