@@ -827,8 +827,8 @@ static void requestStksendTerminalResponse(void* data, size_t datalen, RIL_Token
         goto on_exit;
     }
 
-    err = at_send_command_singleline(cmd, "+CUSATT:", &p_response);
-    if (err != AT_OK || !p_response || p_response->success != AT_OK) {
+    err = at_send_command_singleline(cmd, "+CUSATT: ", &p_response);
+    if (err != AT_ERROR_OK || !p_response || p_response->success != AT_OK) {
         RLOGE("Failure occurred in sending %s due to: %s", cmd, at_io_err_str(err));
         ril_err = RIL_E_GENERIC_FAILURE;
         goto on_exit;
