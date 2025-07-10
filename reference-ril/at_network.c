@@ -269,7 +269,7 @@ static void requestSetPreferredNetworkType(void* data, size_t datalen, RIL_Token
     RLOGD("old != preferred: %d", old != preferred);
 
     if (old != preferred) {
-        if (asprintf(&cmd, "AT+CTEC=%d,\"%" PRId32 "\"", current, preferred) < 0) {
+        if (asprintf(&cmd, "AT+CTEC=%d,%" PRId32, current, preferred) < 0) {
             RLOGE("Failed to allocate memory");
             ril_err = RIL_E_NO_MEMORY;
             goto on_exit;
