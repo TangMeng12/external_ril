@@ -26,6 +26,7 @@
 #include <limits.h>
 #include <netinet/in.h>
 #include <parcel.h>
+#include <poll.h>
 #include <pthread.h>
 #include <pwd.h>
 #include <stdarg.h>
@@ -1751,21 +1752,32 @@ invalid:
 static int blockingWrite(int fd, const void* buffer, size_t len)
 {
     size_t writeOffset = 0;
-    const uint8_t* toWrite;
+    const uint8_t* toWrite = (const uint8_t*)buffer;
+    struct pollfd pfd;
 
-    toWrite = (const uint8_t*)buffer;
+    pfd.fd = fd;
+    pfd.events = POLLOUT;
 
     while (writeOffset < len) {
         ssize_t written;
         do {
             written = write(fd, toWrite + writeOffset, len - writeOffset);
-        } while (written < 0 && ((errno == EINTR) || (errno == EAGAIN)));
+        } while (written < 0 && errno == EINTR);
 
         if (written >= 0) {
             writeOffset += written;
-        } else { // written < 0
-            RLOGE("RIL Response: unexpected error on write errno: %d", errno);
-            close(fd);
+        } else if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            int ret;
+            do {
+                ret = poll(&pfd, 1, -1);
+            } while (ret == -1 && errno == EINTR);
+
+            if (ret == -1) {
+                RLOGE("%s: poll failed with error: %d", __func__, errno);
+                return -1;
+            }
+        } else {
+            RLOGE("%s: write failed with error: %d", __func__, errno);
             return -1;
         }
     }
@@ -1800,6 +1812,8 @@ static int sendResponseRaw(const void* data, size_t dataSize)
     ret = blockingWrite(fd, (void*)&header, sizeof(header));
 
     if (ret < 0) {
+        close(s_fdCommand);
+        s_fdCommand = -1;
         pthread_mutex_unlock(&s_writeMutex);
         return ret;
     }
@@ -1807,6 +1821,8 @@ static int sendResponseRaw(const void* data, size_t dataSize)
     ret = blockingWrite(fd, data, dataSize);
 
     if (ret < 0) {
+        close(s_fdCommand);
+        s_fdCommand = -1;
         pthread_mutex_unlock(&s_writeMutex);
         return ret;
     }
