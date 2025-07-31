@@ -2735,10 +2735,11 @@ static void processCommandsCallback(int fd, short flags, void* param)
             RLOGW("EOS.  Closing command socket.");
         }
 
+        ril_event_del(&s_commands_event);
+
         close(s_fdCommand);
         s_fdCommand = -1;
 
-        ril_event_del(&s_commands_event);
         record_stream_free(p_rs);
         /* start listening for new connections again */
         rilEventAddWakeup(&s_listen_event);
