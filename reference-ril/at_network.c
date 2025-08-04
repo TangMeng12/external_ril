@@ -1841,7 +1841,7 @@ bool try_handle_unsol_net(const char* s)
 
     RLOGD("unsol network string: %s", s);
 
-    if (strStartsWith(s, "%CTZV:")) {
+    if (strStartsWith(s, "+CCLK: ")) {
         RLOGI("Receive NITZ URC");
         on_nitz_unsol_resp(s);
         ret = true;
