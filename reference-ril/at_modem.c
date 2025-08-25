@@ -336,7 +336,7 @@ static void requestSuppressMessageReport(void* data, size_t datalen, RIL_Token t
         return;
     }
 
-    if (datalen != sizeof(int) * 2) {
+    if (datalen != sizeof(int) * 4) {
         RLOGE("requestSuppressMessageReport data len is wrong!");
         RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, NULL, 0);
         return;
