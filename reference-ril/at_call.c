@@ -1643,6 +1643,7 @@ void on_request_call(int request, void* data, size_t datalen, RIL_Token t)
         break;
     case RIL_REQUEST_SET_EMERGENCY_NUMBER:
         requestSetEmergencyNumbers(data, datalen, t);
+        break;
     default:
         RLOGE("Request not supported");
         RIL_onRequestComplete(t, RIL_E_REQUEST_NOT_SUPPORTED, NULL, 0);
