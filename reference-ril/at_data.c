@@ -396,6 +396,7 @@ static void requestOrSendDataCallList(int cid, RIL_Token* t)
 
         responses[i].dnses = "8.8.8.8 8.8.4.4";
         responses[i].gateways = "0.0.0.0";
+        responses[i].mtu = DEFAULT_MTU;
     }
 
     // If cid = -1, return the data call list without processing CGCONTRDP (setupDataCall)
