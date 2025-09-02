@@ -1812,8 +1812,6 @@ static int sendResponseRaw(const void* data, size_t dataSize)
     ret = blockingWrite(fd, (void*)&header, sizeof(header));
 
     if (ret < 0) {
-        close(s_fdCommand);
-        s_fdCommand = -1;
         pthread_mutex_unlock(&s_writeMutex);
         return ret;
     }
@@ -1821,8 +1819,6 @@ static int sendResponseRaw(const void* data, size_t dataSize)
     ret = blockingWrite(fd, data, dataSize);
 
     if (ret < 0) {
-        close(s_fdCommand);
-        s_fdCommand = -1;
         pthread_mutex_unlock(&s_writeMutex);
         return ret;
     }
