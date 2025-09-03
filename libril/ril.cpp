@@ -2577,6 +2577,11 @@ static int responseSimStatus(Parcel& p, void* response, size_t responselen)
 
 static int responseImsStatus(Parcel& p, void* response, size_t responselen)
 {
+    if (response == NULL) {
+        RLOGE("%s: Invalid response (NULL)", __func__);
+        return RIL_ERRNO_INVALID_RESPONSE;
+    }
+
     RIL_IMS_REGISTRATION_STATE_RESPONSE* p_cur = NULL;
 
     p_cur = ((RIL_IMS_REGISTRATION_STATE_RESPONSE*)response);
@@ -2985,16 +2990,14 @@ extern "C" void RIL_onRequestComplete(RIL_Token t, RIL_Errno e, void* response,
 
         p.writeInt32(e);
 
-        if (response != NULL) {
-            // there is a response payload, no matter success or not.
-            ret = pRI->pCI->responseFunction(p, response, responselen);
+        // there is a response payload, no matter success or not.
+        ret = pRI->pCI->responseFunction(p, response, responselen);
 
-            /* if an error occurred, rewind and mark it */
-            if (ret != 0) {
-                RLOGE("responseFunction error, ret: %d", ret);
-                p.setDataPosition(errorOffset);
-                p.writeInt32(ret);
-            }
+        /* if an error occurred, rewind and mark it */
+        if (ret != 0) {
+            RLOGE("responseFunction error, ret: %d", ret);
+            p.setDataPosition(errorOffset);
+            p.writeInt32(ret);
         }
 
         if (e != RIL_E_SUCCESS) {
