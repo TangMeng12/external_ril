@@ -51,8 +51,10 @@ static char s_ATBuffer[MAX_AT_RESPONSE + 1];
 static char* s_ATBufferCur = s_ATBuffer;
 
 #if AT_DEBUG
-void AT_DUMP(const char* prefix __unused, const char* buff, int len)
+void AT_DUMP(const char* prefix, const char* buff, int len)
 {
+    (void)prefix;
+
     if (len < 0)
         len = strlen(buff);
     RLOGD("%.*s", len, buff);
