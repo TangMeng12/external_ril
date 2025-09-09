@@ -22,6 +22,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <jstring.h>
 #include <limits.h>
 #include <netinet/in.h>
@@ -46,6 +47,10 @@
 #define INVALID_HEX_CHAR 16
 
 extern "C" void RIL_onRequestComplete(RIL_Token t, RIL_Errno e, void* response, size_t responselen);
+extern "C" const char* requestToString(int request);
+extern "C" const char* failCauseToString(RIL_Errno);
+extern "C" const char* callStateToString(RIL_CallState);
+extern "C" const char* radioStateToString(RIL_RadioState);
 
 #define PHONE_PROCESS "radio"
 
@@ -82,18 +87,42 @@ extern "C" void RIL_onRequestComplete(RIL_Token t, RIL_Errno e, void* response, 
 #define RILC_LOG 0
 
 #if RILC_LOG
-#define startRequest sprintf(printBuf, "(")
-#define closeRequest sprintf(printBuf, "%s)", printBuf)
-#define printRequest(token, req) \
-    RLOGD("[%04d]> %s %s", token, requestToString(req), printBuf)
+static char printBuf[PRINTBUF_SIZE];
 
-#define startResponse sprintf(printBuf, "%s {", printBuf)
-#define closeResponse sprintf(printBuf, "%s}", printBuf)
+static inline void ril_do_append_print_buf(const char* format, ...)
+{
+    size_t len = strlen(printBuf);
+
+    if (len < PRINTBUF_SIZE) {
+        va_list args;
+        va_start(args, format);
+
+        vsnprintf(printBuf + len, PRINTBUF_SIZE - len, format, args);
+
+        va_end(args);
+    }
+}
+
+#define startRequest snprintf(printBuf, PRINTBUF_SIZE, "(")
+#define closeRequest appendPrintBuf(")")
+#define printRequest(token, req) \
+    RLOGD("[%04" PRId32 "]> %s %s", token, requestToString(req), printBuf)
+
+#define startResponse snprintf(printBuf, PRINTBUF_SIZE, "{")
+#define closeResponse appendPrintBuf("}")
 #define printResponse RLOGD("%s", printBuf)
 
-#define clearPrintBuf printBuf[0] = 0
-#define removeLastChar printBuf[strlen(printBuf) - 1] = 0
-#define appendPrintBuf(x...) snprintf(printBuf, PRINTBUF_SIZE, x)
+#define clearPrintBuf (printBuf[0] = '\0')
+
+#define removeLastChar                 \
+    do {                               \
+        size_t len = strlen(printBuf); \
+        if (len > 0) {                 \
+            printBuf[len - 1] = '\0';  \
+        }                              \
+    } while (0)
+
+#define appendPrintBuf(...) ril_do_append_print_buf(__VA_ARGS__)
 #else
 #define startRequest
 #define closeRequest
@@ -138,10 +167,6 @@ typedef struct UserCallbackInfo {
     struct UserCallbackInfo* p_next;
 } UserCallbackInfo;
 
-extern "C" const char* requestToString(int request);
-extern "C" const char* failCauseToString(RIL_Errno);
-extern "C" const char* callStateToString(RIL_CallState);
-extern "C" const char* radioStateToString(RIL_RadioState);
 extern "C" uint8_t hexCharToInt(uint8_t c)
 {
     if (c >= '0' && c <= '9')
@@ -209,10 +234,6 @@ static UserCallbackInfo* s_last_wake_timeout_info = NULL;
 
 static void* s_lastNITZTimeData = NULL;
 static size_t s_lastNITZTimeDataSize;
-
-#if RILC_LOG
-static char printBuf[PRINTBUF_SIZE];
-#endif
 
 /*******************************************************************/
 static int sendResponse(Parcel& p);
@@ -453,7 +474,7 @@ static void dispatchString(Parcel& p, RequestInfo* pRI)
     }
 
     startRequest;
-    appendPrintBuf("%s%s", printBuf, string8);
+    appendPrintBuf("%s", string8);
     closeRequest;
     printRequest(pRI->token, pRI->pCI->requestNumber);
 
@@ -509,7 +530,7 @@ static void dispatchStrings(Parcel& p, RequestInfo* pRI)
 
         for (int i = 0; i < countStrings; i++) {
             pStrings[i] = strdupReadString(p);
-            appendPrintBuf("%s%s,", printBuf, pStrings[i]);
+            appendPrintBuf("%s,", pStrings[i]);
         }
     }
     removeLastChar;
@@ -571,7 +592,7 @@ static void dispatchInts(Parcel& p, RequestInfo* pRI)
         }
 
         pInts[i] = (int)t;
-        appendPrintBuf("%s%d,", printBuf, t);
+        appendPrintBuf("%d,", t);
     }
     removeLastChar;
     closeRequest;
@@ -627,7 +648,7 @@ static void dispatchSmsWrite(Parcel& p, RequestInfo* pRI)
     }
 
     startRequest;
-    appendPrintBuf("%s%d,%s,smsc=%s", printBuf, args.status,
+    appendPrintBuf("%d,%s,smsc=%s", args.status,
         (char*)args.pdu, (char*)args.smsc);
     closeRequest;
     printRequest(pRI->token, pRI->pCI->requestNumber);
@@ -736,9 +757,9 @@ static void dispatchDial(Parcel& p, RequestInfo* pRI)
     }
 
     startRequest;
-    appendPrintBuf("%snum=%s,clir=%d", printBuf, dial.address, dial.clir);
+    appendPrintBuf("num=%s,clir=%d", dial.address, dial.clir);
     if (uusPresent) {
-        appendPrintBuf("%s,uusType=%d,uusDcs=%d,uusLen=%d", printBuf,
+        appendPrintBuf(",uusType=%d,uusDcs=%d,uusLen=%d",
             dial.uusInfo->uusType, dial.uusInfo->uusDcs,
             dial.uusInfo->uusLength);
     }
@@ -844,7 +865,7 @@ static void dispatchSIM_IO(Parcel& p, RequestInfo* pRI)
     simIO.v6.aidPtr = strdupReadString(p);
 
     startRequest;
-    appendPrintBuf("%scmd=0x%X,efid=0x%X,path=%s,%d,%d,%d,%s,pin2=%s,aid=%s", printBuf,
+    appendPrintBuf("cmd=0x%X,efid=0x%X,path=%s,%d,%d,%d,%s,pin2=%s,aid=%s",
         simIO.v6.command, simIO.v6.fileid, (char*)simIO.v6.path,
         simIO.v6.p1, simIO.v6.p2, simIO.v6.p3,
         (char*)simIO.v6.data, (char*)simIO.v6.pin2, simIO.v6.aidPtr);
@@ -944,8 +965,8 @@ static void dispatchSIM_APDU(Parcel& p, RequestInfo* pRI)
     }
 
     startRequest;
-    appendPrintBuf("%ssessionid=%d,cla=%d,ins=%d,p1=%d,p2=%d,p3=%d,data=%s",
-        printBuf, apdu.sessionid, apdu.cla, apdu.instruction, apdu.p1, apdu.p2,
+    appendPrintBuf("sessionid=%d,cla=%d,ins=%d,p1=%d,p2=%d,p3=%d,data=%s",
+        apdu.sessionid, apdu.cla, apdu.instruction, apdu.p1, apdu.p2,
         apdu.p3, (char*)apdu.data);
     closeRequest;
     printRequest(pRI->token, pRI->pCI->requestNumber);
@@ -1035,7 +1056,7 @@ static void dispatchCallForward(Parcel& p, RequestInfo* pRI)
     }
 
     startRequest;
-    appendPrintBuf("%sstat=%d,reason=%d,serv=%d,toa=%d,%s,tout=%d", printBuf,
+    appendPrintBuf("stat=%d,reason=%d,serv=%d,toa=%d,%s,tout=%d",
         cff.status, cff.reason, cff.serviceClass, cff.toa,
         (char*)cff.number, cff.timeSeconds);
     closeRequest;
@@ -1080,7 +1101,7 @@ static void dispatchRaw(Parcel& p, RequestInfo* pRI)
     data = p.readInplace(len);
 
     startRequest;
-    appendPrintBuf("%sraw_size=%d", printBuf, len);
+    appendPrintBuf("raw_size=%d", len);
     closeRequest;
     printRequest(pRI->token, pRI->pCI->requestNumber);
 
@@ -1114,7 +1135,7 @@ static void dispatchImsGsmSms(Parcel& p, RequestInfo* pRI, uint8_t retry,
     rism.messageRef = messageRef;
 
     startRequest;
-    appendPrintBuf("%stech=%d, retry=%d, messageRef=%d, ", printBuf,
+    appendPrintBuf("tech=%d, retry=%d, messageRef=%d, ",
         (int)rism.tech, (int)rism.retry, rism.messageRef);
     if (countStrings == 0) {
         // just some non-null pointer
@@ -1148,7 +1169,7 @@ static void dispatchImsGsmSms(Parcel& p, RequestInfo* pRI, uint8_t retry,
 
         for (int i = 0; i < countStrings; i++) {
             pStrings[i] = strdupReadString(p);
-            appendPrintBuf("%s%s,", printBuf, pStrings[i]);
+            appendPrintBuf("%s,", pStrings[i]);
         }
     }
     removeLastChar;
@@ -1280,10 +1301,9 @@ static void dispatchGsmBrSmsCnf(Parcel& p, RequestInfo* pRI)
             }
             gsmBci[i].selected = (uint8_t)t;
 
-            appendPrintBuf("%s [%d: fromServiceId=%d, toServiceId =%d, \
-                  fromCodeScheme=%d, toCodeScheme=%d, selected =%d]",
-                printBuf, i,
-                gsmBci[i].fromServiceId, gsmBci[i].toServiceId,
+            appendPrintBuf("[%d: fromServiceId=%d, toServiceId =%d, "
+                           "fromCodeScheme=%d, toCodeScheme=%d, selected =%d]",
+                i, gsmBci[i].fromServiceId, gsmBci[i].toServiceId,
                 gsmBci[i].fromCodeScheme, gsmBci[i].toCodeScheme,
                 gsmBci[i].selected);
         }
@@ -1393,8 +1413,8 @@ static void dispatchSetInitialAttachApn(Parcel& p, RequestInfo* pRI)
     pf.password = strdupReadString(p);
 
     startRequest;
-    appendPrintBuf("%sapn=%s, protocol=%s, authtype=%d, username=%s, password=%s",
-        printBuf, pf.apn, pf.protocol, pf.authtype, pf.username, pf.password);
+    appendPrintBuf("apn=%s, protocol=%s, authtype=%d, username=%s, password=%s",
+        pf.apn, pf.protocol, pf.authtype, pf.username, pf.password);
     closeRequest;
     printRequest(pRI->token, pRI->pCI->requestNumber);
 
@@ -1589,10 +1609,10 @@ static void dispatchDataProfile(Parcel& p, RequestInfo* pRI)
         }
         dataProfiles[i].enabled = (int)t;
 
-        appendPrintBuf("%s [%d: profileId=%d, apn =%s, protocol =%s, authType =%d, \
-                user =%s, password =%s, type =%d, maxConnsTime =%d, maxConns =%d, \
-                waitTime =%d, enabled =%d]",
-            printBuf, i, dataProfiles[i].profileId,
+        appendPrintBuf("[%d: profileId=%d, apn =%s, protocol =%s, authType =%d, "
+                       "user =%s, password =%s, type =%d, maxConnsTime =%d, maxConns =%d, "
+                       "waitTime =%d, enabled =%d]",
+            i, dataProfiles[i].profileId,
             dataProfiles[i].apn, dataProfiles[i].protocol, dataProfiles[i].authType,
             dataProfiles[i].user, dataProfiles[i].password, dataProfiles[i].type,
             dataProfiles[i].maxConnsTime, dataProfiles[i].maxConns,
@@ -1856,7 +1876,7 @@ static int responseInts(Parcel& p, void* response, size_t responselen)
     /* each int*/
     startResponse;
     for (int i = 0; i < numInts; i++) {
-        appendPrintBuf("%s%d,", printBuf, p_int[i]);
+        appendPrintBuf("%d,", p_int[i]);
         p.writeInt32(p_int[i]);
     }
     removeLastChar;
@@ -1900,7 +1920,7 @@ static int responseStrings(Parcel& p, void* response, size_t responselen)
         /* each string*/
         startResponse;
         for (int i = 0; i < numStrings; i++) {
-            appendPrintBuf("%s%s,", printBuf, (char*)p_cur[i]);
+            appendPrintBuf("%s,", (char*)p_cur[i]);
             writeStringToParcel(p, p_cur[i]);
         }
         removeLastChar;
@@ -1917,7 +1937,7 @@ static int responseString(Parcel& p, void* response, size_t responselen)
 {
     /* one string only */
     startResponse;
-    appendPrintBuf("%s%s", printBuf, (char*)response);
+    appendPrintBuf("%s", (char*)response);
     closeResponse;
 
     writeStringToParcel(p, (const char*)response);
@@ -1978,20 +1998,17 @@ static int responseCallList(Parcel& p, void* response, size_t responselen)
             p.writeInt32(uusInfo->uusLength);
             p.write(uusInfo->uusData, uusInfo->uusLength);
         }
-        appendPrintBuf("%s[id=%d,%s,toa=%d,",
-            printBuf,
+        appendPrintBuf("[id=%d,%s,toa=%d,",
             p_cur->index,
             callStateToString(p_cur->state),
             p_cur->toa);
-        appendPrintBuf("%s%s,%s,als=%d,%s,%s,",
-            printBuf,
+        appendPrintBuf("%s,%s,als=%d,%s,%s,",
             (p_cur->isMpty) ? "conf" : "norm",
             (p_cur->isMT) ? "mt" : "mo",
             p_cur->als,
             (p_cur->isVoice) ? "voc" : "nonvoc",
             (p_cur->isVoicePrivacy) ? "evp" : "noevp");
-        appendPrintBuf("%s%s,cli=%d,name='%s',%d]",
-            printBuf,
+        appendPrintBuf("%s,cli=%d,name='%s',%d]",
             p_cur->number,
             p_cur->numberPresentation,
             p_cur->name,
@@ -2023,7 +2040,7 @@ static int responseSMS(Parcel& p, void* response, size_t responselen)
     p.writeInt32(p_cur->errorCode);
 
     startResponse;
-    appendPrintBuf("%s%d,%s,%d", printBuf, p_cur->messageRef,
+    appendPrintBuf("%d,%s,%d", p_cur->messageRef,
         (char*)p_cur->ackPDU, p_cur->errorCode);
     closeResponse;
 
@@ -2055,7 +2072,7 @@ static int responseDataCallListV4(Parcel& p, void* response, size_t responselen)
         writeStringToParcel(p, p_cur[i].type);
         // apn is not used, so don't send.
         writeStringToParcel(p, p_cur[i].address);
-        appendPrintBuf("%s[cid=%d,%s,%s,%s],", printBuf,
+        appendPrintBuf("[cid=%d,%s,%s,%s],",
             p_cur[i].cid,
             (p_cur[i].active == 0) ? "down" : "up",
             (char*)p_cur[i].type,
@@ -2104,7 +2121,7 @@ static int responseDataCallList(Parcel& p, void* response, size_t responselen)
             writeStringToParcel(p, p_cur[i].gateways);
             writeStringToParcel(p, p_cur[i].pcscf);
             p.writeInt32(p_cur[i].mtu);
-            appendPrintBuf("%s[status=%d,retry=%d,cid=%d,%s,%s,%s,%s,%s,%s],", printBuf,
+            appendPrintBuf("[status=%d,retry=%d,cid=%d,%s,%s,%s,%s,%s,%s],",
                 p_cur[i].status,
                 p_cur[i].suggestedRetryTime,
                 p_cur[i].cid,
@@ -2170,7 +2187,7 @@ static int responseSIM_IO(Parcel& p, void* response, size_t responselen)
     writeStringToParcel(p, p_cur->simResponse);
 
     startResponse;
-    appendPrintBuf("%ssw1=0x%X,sw2=0x%X,%s", printBuf, p_cur->sw1, p_cur->sw2,
+    appendPrintBuf("sw1=0x%X,sw2=0x%X,%s", p_cur->sw1, p_cur->sw2,
         (char*)p_cur->simResponse);
     closeResponse;
 
@@ -2206,7 +2223,7 @@ static int responseCallForwards(Parcel& p, void* response, size_t responselen)
         p.writeInt32(p_cur->toa);
         writeStringToParcel(p, p_cur->number);
         p.writeInt32(p_cur->timeSeconds);
-        appendPrintBuf("%s[%s,reason=%d,cls=%d,toa=%d,%s,tout=%d],", printBuf,
+        appendPrintBuf("[%s,reason=%d,cls=%d,toa=%d,%s,tout=%d],",
             (p_cur->status == 1) ? "enable" : "disable",
             p_cur->reason, p_cur->serviceClass, p_cur->toa,
             (char*)p_cur->number,
@@ -2239,7 +2256,7 @@ static int responseSsn(Parcel& p, void* response, size_t responselen)
     writeStringToParcel(p, p_cur->number);
 
     startResponse;
-    appendPrintBuf("%s%s,code=%d,id=%d,type=%d,%s", printBuf,
+    appendPrintBuf("%s,code=%d,id=%d,type=%d,%s",
         (p_cur->notificationType == 0) ? "mo" : "mt",
         p_cur->code, p_cur->index, p_cur->type,
         (char*)p_cur->number);
@@ -2305,13 +2322,12 @@ static int responseRilSignalStrength(Parcel& p,
         }
 
         startResponse;
-        appendPrintBuf("%s[signalStrength=%d,bitErrorRate=%d,\
-                CDMA_SS.dbm=%d,CDMA_SSecio=%d,\
-                EVDO_SS.dbm=%d,EVDO_SS.ecio=%d,\
-                EVDO_SS.signalNoiseRatio=%d,\
-                LTE_SS.signalStrength=%d,LTE_SS.rsrp=%d,LTE_SS.rsrq=%d,\
-                LTE_SS.rssnr=%d,LTE_SS.cqi=%d]",
-            printBuf,
+        appendPrintBuf("[signalStrength=%d,bitErrorRate=%d,"
+                       "CDMA_SS.dbm=%d,CDMA_SSecio=%d,"
+                       "EVDO_SS.dbm=%d,EVDO_SS.ecio=%d,"
+                       "EVDO_SS.signalNoiseRatio=%d,"
+                       "LTE_SS.signalStrength=%d,LTE_SS.rsrp=%d,LTE_SS.rsrq=%d,"
+                       "LTE_SS.rssnr=%d,LTE_SS.cqi=%d]",
             p_cur->GW_SignalStrength.signalStrength,
             p_cur->GW_SignalStrength.bitErrorRate,
             p_cur->CDMA_SignalStrength.dbm,
@@ -2337,12 +2353,12 @@ static int responseRilSignalStrength(Parcel& p,
         size_t totalIntegers = 7; // Number of integers in RIL_SignalStrength
         size_t i;
 
-        appendPrintBuf("%s[", printBuf);
+        appendPrintBuf("[");
         for (i = 0; i < num; i++) {
-            appendPrintBuf("%s %d", printBuf, *p_cur);
+            appendPrintBuf("%d ", *p_cur);
             p.writeInt32(*p_cur++);
         }
-        appendPrintBuf("%s]", printBuf);
+        appendPrintBuf("]");
 
         // Fill the remainder with zero's.
         for (; i < totalIntegers; i++) {
@@ -2378,8 +2394,7 @@ static int responseSimRefresh(Parcel& p, void* response, size_t responselen)
         p.writeInt32(p_cur->ef_id);
         writeStringToParcel(p, p_cur->aid);
 
-        appendPrintBuf("%sresult=%d, ef_id=%d, aid=%s",
-            printBuf,
+        appendPrintBuf("result=%d, ef_id=%d, aid=%s",
             p_cur->result,
             p_cur->ef_id,
             p_cur->aid);
@@ -2389,8 +2404,7 @@ static int responseSimRefresh(Parcel& p, void* response, size_t responselen)
         p.writeInt32(p_cur[1]);
         writeStringToParcel(p, NULL);
 
-        appendPrintBuf("%sresult=%d, ef_id=%d",
-            printBuf,
+        appendPrintBuf("result=%d, ef_id=%d",
             p_cur[0],
             p_cur[1]);
     }
@@ -2419,7 +2433,7 @@ static int responseCellInfoList(Parcel& p, void* response, size_t responselen)
     startResponse;
     int i;
     for (i = 0; i < num; i++) {
-        appendPrintBuf("%s[%d: type=%d,registered=%d,timeStampType=%d,timeStamp=%lld", printBuf, i,
+        appendPrintBuf("[%d: type=%d,registered=%d,timeStampType=%d,timeStamp=%lld", i,
             p_cur->cellInfoType, p_cur->registered, p_cur->timeStampType, p_cur->timeStamp);
         p.writeInt32((int)p_cur->cellInfoType);
         p.writeInt32(p_cur->registered);
@@ -2427,12 +2441,12 @@ static int responseCellInfoList(Parcel& p, void* response, size_t responselen)
         p.writeInt64(p_cur->timeStamp);
         switch (p_cur->cellInfoType) {
         case RIL_CELL_INFO_TYPE_GSM: {
-            appendPrintBuf("%s GSM id: mcc=%d,mnc=%d,lac=%d,cid=%d,", printBuf,
+            appendPrintBuf(" GSM id: mcc=%d,mnc=%d,lac=%d,cid=%d,",
                 p_cur->CellInfo.gsm.cellIdentityGsm.mcc,
                 p_cur->CellInfo.gsm.cellIdentityGsm.mnc,
                 p_cur->CellInfo.gsm.cellIdentityGsm.lac,
                 p_cur->CellInfo.gsm.cellIdentityGsm.cid);
-            appendPrintBuf("%s gsmSS: ss=%d,ber=%d],", printBuf,
+            appendPrintBuf(" gsmSS: ss=%d,ber=%d],",
                 p_cur->CellInfo.gsm.signalStrengthGsm.signalStrength,
                 p_cur->CellInfo.gsm.signalStrengthGsm.bitErrorRate);
 
@@ -2445,13 +2459,13 @@ static int responseCellInfoList(Parcel& p, void* response, size_t responselen)
             break;
         }
         case RIL_CELL_INFO_TYPE_WCDMA: {
-            appendPrintBuf("%s WCDMA id: mcc=%d,mnc=%d,lac=%d,cid=%d,psc=%d,", printBuf,
+            appendPrintBuf(" WCDMA id: mcc=%d,mnc=%d,lac=%d,cid=%d,psc=%d,",
                 p_cur->CellInfo.wcdma.cellIdentityWcdma.mcc,
                 p_cur->CellInfo.wcdma.cellIdentityWcdma.mnc,
                 p_cur->CellInfo.wcdma.cellIdentityWcdma.lac,
                 p_cur->CellInfo.wcdma.cellIdentityWcdma.cid,
                 p_cur->CellInfo.wcdma.cellIdentityWcdma.psc);
-            appendPrintBuf("%s wcdmaSS: ss=%d,ber=%d],", printBuf,
+            appendPrintBuf(" wcdmaSS: ss=%d,ber=%d],",
                 p_cur->CellInfo.wcdma.signalStrengthWcdma.signalStrength,
                 p_cur->CellInfo.wcdma.signalStrengthWcdma.bitErrorRate);
 
@@ -2465,7 +2479,7 @@ static int responseCellInfoList(Parcel& p, void* response, size_t responselen)
             break;
         }
         case RIL_CELL_INFO_TYPE_LTE: {
-            appendPrintBuf("%s LTE id: mcc=%d,mnc=%d,ci=%d,pci=%d,tac=%d", printBuf,
+            appendPrintBuf(" LTE id: mcc=%d,mnc=%d,ci=%d,pci=%d,tac=%d",
                 p_cur->CellInfo.lte.cellIdentityLte.mcc,
                 p_cur->CellInfo.lte.cellIdentityLte.mnc,
                 p_cur->CellInfo.lte.cellIdentityLte.ci,
@@ -2478,7 +2492,7 @@ static int responseCellInfoList(Parcel& p, void* response, size_t responselen)
             p.writeInt32(p_cur->CellInfo.lte.cellIdentityLte.pci);
             p.writeInt32(p_cur->CellInfo.lte.cellIdentityLte.tac);
 
-            appendPrintBuf("%s lteSS: ss=%d,rsrp=%d,rsrq=%d,rssnr=%d,cqi=%d,ta=%d", printBuf,
+            appendPrintBuf(" lteSS: ss=%d,rsrp=%d,rsrq=%d,rssnr=%d,cqi=%d,ta=%d",
                 p_cur->CellInfo.lte.signalStrengthLte.signalStrength,
                 p_cur->CellInfo.lte.signalStrengthLte.rsrp,
                 p_cur->CellInfo.lte.signalStrengthLte.rsrq,
@@ -2535,9 +2549,8 @@ static void sendSimStatusAppInfo(Parcel& p, int num_apps, RIL_AppStatus appStatu
         p.writeInt32(appStatus[i].pin1_replaced);
         p.writeInt32(appStatus[i].pin1);
         p.writeInt32(appStatus[i].pin2);
-        appendPrintBuf("%s[app_type=%d,app_state=%d,perso_substate=%d,\
-                    aid_ptr=%s,app_label_ptr=%s,pin1_replaced=%d,pin1=%d,pin2=%d],",
-            printBuf,
+        appendPrintBuf("[app_type=%d,app_state=%d,perso_substate=%d,"
+                       "aid_ptr=%s,app_label_ptr=%s,pin1_replaced=%d,pin1=%d,pin2=%d],",
             appStatus[i].app_type,
             appStatus[i].app_state,
             appStatus[i].perso_substate,
@@ -2607,9 +2620,9 @@ static int responseGsmBrSmsCnf(Parcel& p, void* response, size_t responselen)
         p.writeInt32(p_cur[i]->toCodeScheme);
         p.writeInt32(p_cur[i]->selected);
 
-        appendPrintBuf("%s [%d: fromServiceId=%d, toServiceId=%d, \
-                fromCodeScheme=%d, toCodeScheme=%d, selected =%d]",
-            printBuf, i, p_cur[i]->fromServiceId, p_cur[i]->toServiceId,
+        appendPrintBuf(" [%d: fromServiceId=%d, toServiceId=%d, "
+                       "fromCodeScheme=%d, toCodeScheme=%d, selected =%d]",
+            i, p_cur[i]->fromServiceId, p_cur[i]->toServiceId,
             p_cur[i]->fromCodeScheme, p_cur[i]->toCodeScheme,
             p_cur[i]->selected);
     }
@@ -2639,8 +2652,8 @@ static int responseActivityData(Parcel& p, void* response, size_t responselen)
     p.writeInt32(p_cur->rx_mode_time_ms);
 
     startResponse;
-    appendPrintBuf("Modem activity info received: sleep_mode_time_ms %d idle_mode_time_ms %d \
-                  tx_mode_time_ms %d %d %d %d %d and rx_mode_time_ms %d",
+    appendPrintBuf("Modem activity info received: sleep_mode_time_ms %d idle_mode_time_ms %d "
+                   "tx_mode_time_ms %d %d %d %d %d and rx_mode_time_ms %d",
         p_cur->sleep_mode_time_ms, p_cur->idle_mode_time_ms, p_cur->tx_mode_time_ms[0],
         p_cur->tx_mode_time_ms[1], p_cur->tx_mode_time_ms[2], p_cur->tx_mode_time_ms[3],
         p_cur->tx_mode_time_ms[4], p_cur->rx_mode_time_ms);
@@ -3001,7 +3014,7 @@ extern "C" void RIL_onRequestComplete(RIL_Token t, RIL_Errno e, void* response,
         }
 
         if (e != RIL_E_SUCCESS) {
-            appendPrintBuf("%s fails by %s", printBuf, failCauseToString(e));
+            appendPrintBuf(" fails by %s", failCauseToString(e));
         }
 
         if (s_fdCommand < 0) {
@@ -3190,8 +3203,7 @@ extern "C" void RIL_onUnsolicitedResponse(int unsolResponse, const void* data,
         newState = processRadioState(s_callbacks.onStateRequest());
         RLOGD("state change");
         p.writeInt32(newState);
-        appendPrintBuf("%s {%s}", printBuf,
-            radioStateToString(s_callbacks.onStateRequest()));
+        appendPrintBuf(" {%s}", radioStateToString(s_callbacks.onStateRequest()));
         break;
 
     case RIL_UNSOL_NITZ_TIME_RECEIVED:

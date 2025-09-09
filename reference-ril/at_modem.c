@@ -1132,7 +1132,7 @@ static void on_modem_debug_info_unsol_resp(const char* s)
     }
 
     RLOGD("On modem debug info URC, sn: %d, eventid: %d, page: %d, pages: %d, buf: %s", sn,
-        eventid, page, pages, buf);
+        eventid, page, page_cont, buf);
 
     if (page == page_cont) {
         RIL_onUnsolicitedResponse(RIL_UNSOL_ABNORMAL_EVENT, &modem_info, sizeof(RIL_ModemInfo));
