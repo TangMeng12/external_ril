@@ -178,6 +178,7 @@ static inline req_category_t request2eventtype(int request)
     case RIL_REQUEST_OEM_HOOK_RAW:
     case RIL_REQUEST_OEM_HOOK_STRINGS:
     case RIL_REQUEST_SCREEN_STATE:
+    case RIL_REQUEST_GET_HARDWARE_CONFIG:
     case RIL_REQUEST_GET_ACTIVITY_INFO:
     case RIL_REQUEST_DEVICE_IDENTITY:
     case RIL_REQUEST_ENABLE_MODEM:

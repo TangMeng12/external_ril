@@ -52,6 +52,7 @@ static bool verify_transmit_apdu_basic(int token, Parcel& p);
 static bool verify_query_callforward_status(int token, Parcel& p);
 static bool verify_get_callwaiting(int token, Parcel& p);
 static bool verify_ims_registration(int token, Parcel& p);
+static bool verify_hardware_config(int token, Parcel& p);
 
 static const char* requestToString(int request);
 
@@ -121,6 +122,7 @@ static struct ril_test_case cases[] = {
     { 43, "EnableIMS", RIL_REQUEST_IMS_REG_STATE_CHANGE, construct_enable_switch, verify_void },
     { 44, "GetIMSRegistration", RIL_REQUEST_IMS_REGISTRATION_STATE, construct_void, verify_ims_registration },
     { 45, "SetIMSCap", RIL_REQUEST_IMS_SET_SERVICE_STATUS, construct_set_ims_cap, verify_void },
+    { 46, "GetHardwareConfig", RIL_REQUEST_GET_HARDWARE_CONFIG, construct_void, verify_hardware_config },
 };
 
 static int ntest_cases = sizeof(cases) / sizeof(cases[0]);
@@ -1619,6 +1621,67 @@ static bool verify_ims_registration(int token, Parcel& p)
     }
 
     syslog(LOG_INFO, "subscriber_uri: %s.", str);
+    free(str);
+
+    return true;
+}
+
+static bool verify_hardware_config(int token, Parcel& p)
+{
+    int32_t i = 0;
+    int num = 0;
+    int type = 0;
+    char* str = NULL;
+
+    if (!is_valid_sol_parcel_header(token, p)) {
+        syslog(LOG_ERR, "%s: Testcase(%d)'s parcel header is invalid.", __func__, token);
+        return false;
+    }
+
+    if (p.readInt32(&i) != 0) {
+        syslog(LOG_ERR, "%s: Failed to read num.", __func__);
+        return false;
+    }
+
+    num = i;
+    for (int j = 0; j < num; j++) {
+        syslog(LOG_INFO, "\n\n index: %d", j);
+        p.readInt32(&i);
+        if (i != RIL_HARDWARE_CONFIG_MODEM && i != RIL_HARDWARE_CONFIG_SIM) {
+            syslog(LOG_ERR, "%s: Failed to read type.", __func__);
+            return false;
+        }
+        syslog(LOG_INFO, "type: %ld", i);
+        type = i;
+
+        str = strdupReadString(p);
+        syslog(LOG_INFO, "uuid: %s", str);
+        free(str);
+
+        p.readInt32(&i);
+        if (i < RIL_HARDWARE_CONFIG_STATE_ENABLED || RIL_HARDWARE_CONFIG_STATE_DISABLED > 2) {
+            syslog(LOG_ERR, "%s: Failed to read state.", __func__);
+            return false;
+        }
+        syslog(LOG_INFO, "state: %ld", i);
+
+        if (type == RIL_HARDWARE_CONFIG_MODEM) {
+            p.readInt32(&i);
+            syslog(LOG_INFO, "rilModel: %ld", i);
+            p.readInt32(&i);
+            syslog(LOG_INFO, "rat: %ld", i);
+            p.readInt32(&i);
+            syslog(LOG_INFO, "maxVoice: %ld", i);
+            p.readInt32(&i);
+            syslog(LOG_INFO, "maxData: %ld", i);
+            p.readInt32(&i);
+            syslog(LOG_INFO, "maxStandby: %ld", i);
+        } else {
+            str = strdupReadString(p);
+            syslog(LOG_INFO, "modemUuid: %s", str);
+            free(str);
+        }
+    }
 
     return true;
 }

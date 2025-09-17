@@ -138,7 +138,7 @@
     { 121, NULL, NULL },
     { 122, NULL, NULL },
     { RIL_REQUEST_ALLOW_DATA, dispatchInts, responseVoid },
-    { 124, NULL, NULL },
+    { RIL_REQUEST_GET_HARDWARE_CONFIG, dispatchVoid, responseHardwareConfig },
     { 125, NULL, NULL },
     { 126, NULL, NULL },
     { 127, NULL, NULL },

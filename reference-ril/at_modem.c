@@ -189,6 +189,137 @@ static void requestDeviceIdentity(void* data, size_t datalen, RIL_Token t)
     at_response_free(p_response);
 }
 
+static void requestGetHardwareConfig(void* data, size_t datalen, RIL_Token t)
+{
+    (void)data;
+    (void)datalen;
+
+    ATResponse* p_response = NULL;
+    RIL_HardwareConfig* hwCfg = NULL;
+    RIL_Errno ril_err = RIL_E_SUCCESS;
+    ATLine* cur = NULL;
+    char* line = NULL;
+    int d = 0;
+    int config_num = 0;
+    int err = -1;
+    int i = 0;
+
+    err = at_send_command_multiline("AT^CHWCFG", "^CHWCFG:", &p_response);
+    if (err != AT_ERROR_OK || !p_response || p_response->success != AT_OK) {
+        RLOGE("Failure occurred in sending %s, ret: %s, p_response: %p, final response: %s",
+            "AT^CHWCFG", at_io_err_str(err), p_response,
+            p_response ? p_response->finalResponse : "null");
+        ril_err = RIL_E_GENERIC_FAILURE;
+        goto on_exit;
+    }
+
+    for (cur = p_response->p_intermediates; cur; cur = cur->p_next) {
+        config_num++;
+    }
+
+    hwCfg = calloc(config_num, sizeof(RIL_HardwareConfig));
+    if (hwCfg == NULL) {
+        RLOGE("Fail to allocate memory for hwCfg");
+        ril_err = RIL_E_NO_MEMORY;
+        goto on_exit;
+    }
+
+    for (i = 0, cur = p_response->p_intermediates; cur; cur = cur->p_next, i++) {
+        line = cur->line;
+        err = at_tok_start(&line);
+        if (err < 0) {
+            RLOGE("Fail to parse line");
+            goto on_exit;
+        }
+
+        err = at_tok_nextint(&line, &d);
+        if (err < 0) {
+            RLOGE("Failed to parse type (%d) in index (%d)", d, i);
+            ril_err = RIL_E_GENERIC_FAILURE;
+            goto on_exit;
+        }
+        hwCfg[i].type = (RIL_HardwareConfig_Type)d;
+
+        char* uuid = NULL;
+        err = at_tok_nextstr(&line, &uuid);
+        if (err < 0) {
+            RLOGE("Failed to parse uuid (%s) in index (%d)", uuid, i);
+            ril_err = RIL_E_GENERIC_FAILURE;
+            goto on_exit;
+        }
+        strncpy(hwCfg[i].uuid, uuid, MAX_UUID_LENGTH);
+
+        err = at_tok_nextint(&line, &d);
+        if (err < 0) {
+            RLOGE("Failed to parse state (%d) in index (%d)", d, i);
+            ril_err = RIL_E_GENERIC_FAILURE;
+            goto on_exit;
+        }
+        hwCfg[i].state = (RIL_HardwareConfig_State)d;
+
+        if (hwCfg[i].type == RIL_HARDWARE_CONFIG_MODEM) {
+            err = at_tok_nextint(&line, &d);
+            if (err < 0) {
+                RLOGE("Failed to parse rilModel (%d) in index (%d)", d, i);
+                ril_err = RIL_E_GENERIC_FAILURE;
+                goto on_exit;
+            }
+            hwCfg[i].cfg.modem.rilModel = d;
+
+            err = at_tok_nextint(&line, &d);
+            if (err < 0) {
+                RLOGE("Failed to parse rat (%d) in index (%d)", d, i);
+                ril_err = RIL_E_GENERIC_FAILURE;
+                goto on_exit;
+            }
+            hwCfg[i].cfg.modem.rat = (uint32_t)d;
+
+            err = at_tok_nextint(&line, &d);
+            if (err < 0) {
+                RLOGE("Failed to parse maxVoice (%d) in index (%d)", d, i);
+                ril_err = RIL_E_GENERIC_FAILURE;
+                goto on_exit;
+            }
+            hwCfg[i].cfg.modem.maxVoice = d;
+
+            err = at_tok_nextint(&line, &d);
+            if (err < 0) {
+                RLOGE("Failed to parse maxData (%d) in index (%d)", d, i);
+                ril_err = RIL_E_GENERIC_FAILURE;
+                goto on_exit;
+            }
+            hwCfg[i].cfg.modem.maxData = d;
+
+            err = at_tok_nextint(&line, &d);
+            if (err < 0) {
+                RLOGE("Failed to parse maxStandby (%d) in index (%d)", d, i);
+                ril_err = RIL_E_GENERIC_FAILURE;
+                goto on_exit;
+            }
+            hwCfg[i].cfg.modem.maxStandby = d;
+        } else if (hwCfg[i].type == RIL_HARDWARE_CONFIG_SIM) {
+            char* simUuid = NULL;
+            err = at_tok_nextstr(&line, &simUuid);
+            if (err < 0) {
+                RLOGE("Failed to parse modemUuid (%s) in index (%d)", simUuid, i);
+                ril_err = RIL_E_GENERIC_FAILURE;
+                goto on_exit;
+            }
+            strncpy(hwCfg[i].cfg.sim.modemUuid, simUuid, MAX_UUID_LENGTH);
+        } else {
+            RLOGE("Invalid config type.");
+            ril_err = RIL_E_GENERIC_FAILURE;
+            goto on_exit;
+        }
+    }
+
+on_exit:
+    RIL_onRequestComplete(t, ril_err, ril_err == RIL_E_SUCCESS ? hwCfg : NULL,
+        ril_err == RIL_E_SUCCESS ? config_num * sizeof(RIL_HardwareConfig) : 0);
+    at_response_free(p_response);
+    free(hwCfg);
+}
+
 static void unsolicitedRingBackTone(const char* s)
 {
     char *line, *p;
@@ -1000,6 +1131,9 @@ void on_request_modem(int request, void* data, size_t datalen, RIL_Token t)
         break;
     case RIL_REQUEST_DEVICE_IDENTITY:
         requestDeviceIdentity(data, datalen, t);
+        break;
+    case RIL_REQUEST_GET_HARDWARE_CONFIG:
+        requestGetHardwareConfig(data, datalen, t);
         break;
     case RIL_REQUEST_GET_ACTIVITY_INFO:
         requestGetActivityInfo(data, datalen, t);

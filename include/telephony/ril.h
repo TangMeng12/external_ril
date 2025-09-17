@@ -1297,6 +1297,39 @@ typedef struct {
 } RIL_CellInfo_v12;
 
 typedef enum {
+    RIL_HARDWARE_CONFIG_MODEM = 0,
+    RIL_HARDWARE_CONFIG_SIM = 1,
+} RIL_HardwareConfig_Type;
+
+typedef enum {
+    RIL_HARDWARE_CONFIG_STATE_ENABLED = 0,
+    RIL_HARDWARE_CONFIG_STATE_STANDBY = 1,
+    RIL_HARDWARE_CONFIG_STATE_DISABLED = 2,
+} RIL_HardwareConfig_State;
+
+typedef struct {
+    int rilModel;
+    uint32_t rat; /* bitset - ref. RIL_RadioTechnology. */
+    int maxVoice;
+    int maxData;
+    int maxStandby;
+} RIL_HardwareConfig_Modem;
+
+typedef struct {
+    char modemUuid[MAX_UUID_LENGTH];
+} RIL_HardwareConfig_Sim;
+
+typedef struct {
+    RIL_HardwareConfig_Type type;
+    char uuid[MAX_UUID_LENGTH];
+    RIL_HardwareConfig_State state;
+    union {
+        RIL_HardwareConfig_Modem modem;
+        RIL_HardwareConfig_Sim sim;
+    } cfg;
+} RIL_HardwareConfig;
+
+typedef enum {
     SS_CFU,
     SS_CF_BUSY,
     SS_CF_NO_REPLY,
@@ -4685,6 +4718,18 @@ typedef struct {
  *
  */
 #define RIL_REQUEST_ALLOW_DATA 123
+
+/**
+ * RIL_REQUEST_GET_HARDWARE_CONFIG
+ *
+ * Request all of the current hardware (modem and sim) associated
+ * with the RIL.
+ *
+ * "data" is NULL
+ *
+ * "response" is an array of  RIL_HardwareConfig.
+ */
+#define RIL_REQUEST_GET_HARDWARE_CONFIG 124
 
 /**
  * RIL_REQUEST_SET_DATA_PROFILE
