@@ -277,6 +277,7 @@ static int responseGsmBrSmsCnf(Parcel& p, void* response, size_t responselen);
 static int responseRilSignalStrength(Parcel& p, void* response, size_t responselen);
 static int responseSimRefresh(Parcel& p, void* response, size_t responselen);
 static int responseCellInfoList(Parcel& p, void* response, size_t responselen);
+static int responseHardwareConfig(Parcel& p, void* response, size_t responselen);
 static int responseStringsWithVersion(int version, Parcel& p, void* response, size_t responselen);
 static int responseActivityData(Parcel& p, void* response, size_t responselen);
 static int responseEccList(Parcel& p, void* response, size_t responselen);
@@ -2518,6 +2519,58 @@ static int responseCellInfoList(Parcel& p, void* response, size_t responselen)
     return 0;
 }
 
+static int responseHardwareConfig(Parcel& p, void* response, size_t responselen)
+{
+    if (response == NULL && responselen != 0) {
+        RLOGE("invalid response: NULL");
+        return RIL_ERRNO_INVALID_RESPONSE;
+    }
+
+    if (responselen % sizeof(RIL_HardwareConfig) != 0) {
+        RLOGE("responseHardwareConfig: invalid response length %zu expected multiple of %zu",
+            responselen, sizeof(RIL_HardwareConfig));
+        return RIL_ERRNO_INVALID_RESPONSE;
+    }
+
+    int i;
+    int num = responselen / sizeof(RIL_HardwareConfig);
+    RIL_HardwareConfig* p_cur = (RIL_HardwareConfig*)response;
+
+    p.writeInt32(num);
+
+    startResponse;
+    for (i = 0; i < num; i++) {
+        p.writeInt32(p_cur[i].type);
+        writeStringToParcel(p, p_cur[i].uuid);
+        p.writeInt32(p_cur[i].state);
+        switch (p_cur[i].type) {
+        case RIL_HARDWARE_CONFIG_MODEM: {
+            p.writeInt32(p_cur[i].cfg.modem.rilModel);
+            p.writeInt32(p_cur[i].cfg.modem.rat);
+            p.writeInt32(p_cur[i].cfg.modem.maxVoice);
+            p.writeInt32(p_cur[i].cfg.modem.maxData);
+            p.writeInt32(p_cur[i].cfg.modem.maxStandby);
+
+            appendPrintBuf("modem: uuid=%s,state=%d,rilModel=%d,rat=%08x,maxV=%d,maxD=%d,maxS=%d",
+                p_cur[i].uuid, (int)p_cur[i].state, p_cur[i].cfg.modem.rilModel,
+                p_cur[i].cfg.modem.rat, p_cur[i].cfg.modem.maxVoice,
+                p_cur[i].cfg.modem.maxData, p_cur[i].cfg.modem.maxStandby);
+            break;
+        }
+        case RIL_HARDWARE_CONFIG_SIM: {
+            writeStringToParcel(p, p_cur[i].cfg.sim.modemUuid);
+
+            appendPrintBuf("sim: uuid=%s,state=%d,modem-uuid=%s", p_cur[i].uuid,
+                p_cur[i].state, p_cur[i].cfg.sim.modemUuid);
+            break;
+        }
+        }
+    }
+    removeLastChar;
+    closeResponse;
+    return 0;
+}
+
 static void triggerEvLoop(void)
 {
     int ret = 0;
@@ -3729,6 +3782,8 @@ extern "C" const char* requestToString(int request)
         return "RIL_REQUEST_SIM_CLOSE_CHANNEL";
     case RIL_REQUEST_SIM_TRANSMIT_APDU_CHANNEL:
         return "RIL_REQUEST_SIM_TRANSMIT_APDU_CHANNEL";
+    case RIL_REQUEST_GET_HARDWARE_CONFIG:
+        return "RIL_REQUEST_GET_HARDWARE_CONFIG";
     case RIL_REQUEST_SET_DATA_PROFILE:
         return "RIL_REQUEST_SET_DATA_PROFILE";
     case RIL_REQUEST_GET_ACTIVITY_INFO:
