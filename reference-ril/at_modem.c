@@ -19,8 +19,8 @@
 
 #include <assert.h>
 #include <stdio.h>
-#include <unistd.h>
 #include <sys/cdefs.h>
+#include <unistd.h>
 
 #include <telephony/librilutils.h>
 #include <telephony/ril_log.h>
@@ -651,6 +651,102 @@ on_exit:
     free(cmd);
 }
 
+static void requestCheckModemUpgradeStatus(void* data, size_t datalen, RIL_Token t)
+{
+    char cmd[50] = { 0 };
+    ATResponse* p_response = NULL;
+    int err = -1;
+    char* line = NULL;
+    RIL_Errno ril_err = RIL_E_SUCCESS;
+    int upgrade_state = 0;
+    int operation_id = 1; // default 1=success,0 = fail
+
+    snprintf(cmd, sizeof(cmd), "AT+MDUPGRADECHECK=%d", operation_id);
+    err = at_send_command_singleline(cmd, "+MDUPGRADECHECK: ", &p_response);
+
+    if (err < 0 || !p_response || p_response->success != AT_OK) {
+        RLOGE("Failure occurred in sending %s due to: %s", cmd, at_io_err_str(err));
+        ril_err = RIL_E_GENERIC_FAILURE;
+        goto on_exit;
+    }
+
+    line = p_response->p_intermediates->line;
+
+    err = at_tok_start(&line);
+    if (err < 0) {
+        RLOGE("Fail to parse line in %s", __func__);
+        ril_err = RIL_E_GENERIC_FAILURE;
+        goto on_exit;
+    }
+
+    err = at_tok_nextint(&line, &upgrade_state);
+    if (err < 0) {
+        RLOGE("Fail to parse upgrade_state in %s", __func__);
+        ril_err = RIL_E_GENERIC_FAILURE;
+        goto on_exit;
+    }
+
+on_exit:
+    RIL_onRequestComplete(t, ril_err, ril_err == RIL_E_SUCCESS ? &upgrade_state : NULL,
+        ril_err == RIL_E_SUCCESS ? sizeof(upgrade_state) : 0);
+    at_response_free(p_response);
+    p_response = NULL;
+}
+
+static void requestSendModemUpgradeCmd(void* data, size_t datalen, RIL_Token t)
+{
+    int cmd_id;
+    int operation_id = 1; // default 1=success,0 = fail
+    char cmd[50] = { 0 };
+    ATResponse* p_response = NULL;
+    int err = -1;
+    RIL_Errno ril_err = RIL_E_SUCCESS;
+    int error_code = -1;
+
+    if (data == NULL) {
+        RLOGE("requestSendModemUpgradeCmd data is null!");
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, &err, 0);
+        return;
+    }
+
+    if (datalen != sizeof(int)) {
+        RLOGE("requestSendModemUpgradeCmd data len is wrong!");
+        RIL_onRequestComplete(t, RIL_E_GENERIC_FAILURE, &err, 0);
+        return;
+    }
+
+    cmd_id = ((int*)data)[0];
+
+    snprintf(cmd, sizeof(cmd), "AT+MDUPGRADECMD=%d,%d", operation_id, cmd_id);
+    err = at_send_command_singleline(cmd, "+MDUPGRADECMD: ", &p_response);
+
+    if (err != AT_ERROR_OK || !p_response || p_response->success != AT_OK) {
+        char* line = NULL;
+        RLOGE("Failure occurred in sending %s due to: %s", cmd, at_io_err_str(err));
+        ril_err = RIL_E_GENERIC_FAILURE;
+        if (p_response) {
+            line = p_response->p_intermediates->line;
+
+            err = at_tok_start(&line);
+            if (err < 0) {
+                RLOGE("Fail to parse line in %s", __func__);
+                goto on_exit;
+            }
+
+            err = at_tok_nextint(&line, &error_code);
+            if (err < 0) {
+                RLOGE("Fail to parse error_code in %s", __func__);
+                goto on_exit;
+            }
+        }
+    }
+on_exit:
+    RIL_onRequestComplete(t, ril_err, ril_err == RIL_E_GENERIC_FAILURE ? &error_code : NULL,
+        ril_err == RIL_E_GENERIC_FAILURE ? sizeof(error_code) : 0);
+    at_response_free(p_response);
+    p_response = NULL;
+}
+
 static void requestGetActivityInfo(void* data, size_t datalen, RIL_Token t)
 {
     (void)data;
@@ -1159,6 +1255,12 @@ void on_request_modem(int request, void* data, size_t datalen, RIL_Token t)
     case RIL_REQUEST_ENABLE_ABNORMAL_EVENT:
         requestEnableAbnormalEvents(data, datalen, t);
         break;
+    case RIL_REQUEST_MODEM_UPGRADE_CHECK:
+        requestCheckModemUpgradeStatus(data, datalen, t);
+        break;
+    case RIL_REQUEST_MODEM_UPGRADE_CMD:
+        requestSendModemUpgradeCmd(data, datalen, t);
+        break;
     default:
         RLOGE("Request not supported");
         RIL_onRequestComplete(t, RIL_E_REQUEST_NOT_SUPPORTED, NULL, 0);
@@ -1322,6 +1424,55 @@ static void on_modem_oem_hook_raw_indication(const char* s)
     free(line);
 }
 
+static void modem_upgrade_state_change(const char* s)
+{
+    char *line, *p;
+    int state_value, ext_info, param_num;
+
+    line = p = strdup(s);
+
+    if (line == NULL) {
+        RLOGE("%s: Failed to allocate memory", __func__);
+        return;
+    }
+
+    if (at_tok_start(&p) < 0) {
+        RLOGE("%s: invalid response string.", __func__);
+        free(line);
+        return;
+    }
+
+    if (at_tok_nextint(&p, &param_num) < 0) {
+        RLOGE("Fail to parse param_num in %s", __func__);
+        free(line);
+        return;
+    }
+
+    RLOGD("param number =%d in %s", param_num, __func__);
+
+    if (at_tok_nextint(&p, &state_value) < 0) {
+        RLOGE("Fail to parse state_value in %s", __func__);
+        free(line);
+        return;
+    }
+
+    if (param_num == 2) {
+        RIL_ModemUpgradeState modem_upgrade_value;
+        if (at_tok_nextint(&p, &ext_info) < 0) {
+            RLOGE("Fail to parse ext_info in %s", __func__);
+            free(line);
+            return;
+        }
+
+        modem_upgrade_value.state_value = state_value;
+        modem_upgrade_value.ext_info = ext_info;
+        RIL_onUnsolicitedResponse(RIL_UNSOL_MODEM_UPGRADE_STATE_CHANGED, &modem_upgrade_value, sizeof(RIL_ModemUpgradeState));
+    } else {
+        RIL_onUnsolicitedResponse(RIL_UNSOL_MODEM_UPGRADE_STATE_CHANGED, &state_value, sizeof(int));
+    }
+    free(line);
+}
+
 bool try_handle_unsol_modem(const char* s)
 {
     bool ret = false;
@@ -1369,6 +1520,9 @@ bool try_handle_unsol_modem(const char* s)
         RLOGI("Receive modem restart URC");
         RIL_onUnsolicitedResponse(RIL_UNSOL_MODEM_RESTART, NULL, 0);
         ret = true;
+    } else if (strStartsWith(s, "^MDUPGRADESTATECHANGE")) {
+        RLOGI("Receive modem upgrade state change URC");
+        modem_upgrade_state_change(s);
     } else {
         RLOGD("Can't match any unsol modem handlers");
     }

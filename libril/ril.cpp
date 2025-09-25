@@ -3878,6 +3878,10 @@ extern "C" const char* requestToString(int request)
         return "RIL_UNSOL_MODEM_RESTART";
     case RIL_UNSOL_EMERGENCY_NUMBER_LIST:
         return "RIL_UNSOL_EMERGENCY_NUMBER_LIST";
+    case RIL_REQUEST_MODEM_UPGRADE_CHECK:
+        return "RIL_REQUEST_MODEM_UPGRADE_CHECK";
+    case RIL_REQUEST_MODEM_UPGRADE_CMD:
+        return "RIL_REQUEST_MODEM_UPGRADE_CMD";
     default:
         return "<unknown request>";
     }

@@ -592,6 +592,11 @@ typedef struct {
                */
 } RIL_NeighboringCell;
 
+typedef struct {
+    int state_value;
+    int ext_info;
+} RIL_ModemUpgradeState;
+
 /* See RIL_REQUEST_LAST_CALL_FAIL_CAUSE */
 typedef enum {
     CALL_FAIL_UNOBTAINABLE_NUMBER = 1,
@@ -4870,6 +4875,31 @@ typedef struct {
  */
 #define RIL_REQUEST_SET_DEVICE_STATIONARY_JUDGE_SCOPE 152
 
+/**
+ * RIL_REQUEST_MODEM_UPGRADE_CHECK
+ *
+ * check modem upgrade status
+ *
+ * Valid errors:
+ *  RIL_E_SUCCESS
+ *  RIL_E_GENERIC_FAILURE
+ *
+ */
+#define RIL_REQUEST_MODEM_UPGRADE_CHECK 153
+
+/**
+ * RIL_REQUEST_MODEM_UPGRADE_CMD
+ *
+ * send modem upgrade cmd
+ * "data" is int *
+ *
+ * Valid errors:
+ *  RIL_E_SUCCESS
+ *  RIL_E_GENERIC_FAILURE
+ *
+ */
+#define RIL_REQUEST_MODEM_UPGRADE_CMD 154
+
 // SECOND STEP BASE
 #define RIL_SECOND_REQUEST_BASE 200
 
@@ -5416,6 +5446,8 @@ RIL_REQUEST_IMS_REG_STATE_CHANGE
 #define RIL_UNSOL_EMERGENCY_NUMBER_LIST 1052
 
 #define RIL_UNSOL_ABNORMAL_EVENT 1054
+
+#define RIL_UNSOL_MODEM_UPGRADE_STATE_CHANGED 1055
 
 #define RIL_UNSOL_PHYSICAL_CHANNEL_CONFIGS 1051
 

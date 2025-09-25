@@ -188,6 +188,8 @@ static inline req_category_t request2eventtype(int request)
     case RIL_REQUEST_SET_DEVICE_STATIONARY:
     case RIL_REQUEST_SET_DEVICE_STATIONARY_JUDGE_SCOPE:
     case RIL_REQUEST_ENABLE_ABNORMAL_EVENT:
+    case RIL_REQUEST_MODEM_UPGRADE_CHECK:
+    case RIL_REQUEST_MODEM_UPGRADE_CMD:
         type = REQ_MODEM_TYPE;
         break;
     case RIL_REQUEST_SEND_SMS:
@@ -605,7 +607,9 @@ static void onRequest(int request, void* data, size_t datalen, RIL_Token t)
 
     RLOGD("onRequest: %d, RadioState: %d", request, getRadioState());
     if (isModemEnable() == 0 && request != RIL_REQUEST_ENABLE_MODEM
-        && request != RIL_REQUEST_GET_MODEM_STATUS) {
+        && request != RIL_REQUEST_GET_MODEM_STATUS
+        && request != RIL_REQUEST_MODEM_UPGRADE_CHECK
+        && request != RIL_REQUEST_MODEM_UPGRADE_CMD) {
         RLOGE("The modem is disabled");
         RIL_onRequestComplete(t, RIL_E_RADIO_NOT_AVAILABLE, NULL, 0);
         return;
@@ -623,7 +627,9 @@ static void onRequest(int request, void* data, size_t datalen, RIL_Token t)
         && request != RIL_REQUEST_SUPPRESS_MESSAGE_REPORT
         && request != RIL_REQUEST_SET_SIGNAL_THRESHOLD
         && request != RIL_REQUEST_SET_DEVICE_STATIONARY
-        && request != RIL_REQUEST_SET_DEVICE_STATIONARY_JUDGE_SCOPE) {
+        && request != RIL_REQUEST_SET_DEVICE_STATIONARY_JUDGE_SCOPE
+        && request != RIL_REQUEST_MODEM_UPGRADE_CHECK
+        && request != RIL_REQUEST_MODEM_UPGRADE_CMD) {
         RLOGE("Radio unavailable");
         RIL_onRequestComplete(t, RIL_E_RADIO_NOT_AVAILABLE, NULL, 0);
         return;
@@ -665,6 +671,8 @@ static void onRequest(int request, void* data, size_t datalen, RIL_Token t)
         case RIL_REQUEST_SET_SIGNAL_THRESHOLD:
         case RIL_REQUEST_SET_DEVICE_STATIONARY:
         case RIL_REQUEST_SET_DEVICE_STATIONARY_JUDGE_SCOPE:
+        case RIL_REQUEST_MODEM_UPGRADE_CHECK:
+        case RIL_REQUEST_MODEM_UPGRADE_CMD:
             // Process all the above, even though the radio is off
             break;
 

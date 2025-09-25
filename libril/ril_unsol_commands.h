@@ -71,3 +71,4 @@
     { RIL_UNSOL_EMERGENCY_NUMBER_LIST, responseEccList, WAKE_PARTIAL },
     { 1053, responseVoid, WAKE_PARTIAL },
     { RIL_UNSOL_ABNORMAL_EVENT, responseAbnormalInfo, WAKE_PARTIAL },
+    { RIL_UNSOL_MODEM_UPGRADE_STATE_CHANGED, responseInts, WAKE_PARTIAL },

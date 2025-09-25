@@ -167,3 +167,5 @@
     { RIL_REQUEST_SET_SIGNAL_THRESHOLD, dispatchInts, responseVoid },
     { RIL_REQUEST_SET_DEVICE_STATIONARY, dispatchInts, responseVoid },
     { RIL_REQUEST_SET_DEVICE_STATIONARY_JUDGE_SCOPE, dispatchInts, responseVoid },
+    { RIL_REQUEST_MODEM_UPGRADE_CHECK, dispatchVoid, responseInts },
+    { RIL_REQUEST_MODEM_UPGRADE_CMD, dispatchInts, responseInts },
