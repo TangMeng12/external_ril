@@ -925,6 +925,17 @@ on_exit:
     at_response_free(p_response);
 }
 
+static void resetStkState(void)
+{
+    RLOGD("Resetting STK service status.");
+    s_stkServiceRunning = false;
+
+    if (s_stkUnsolResponse != NULL) {
+        free(s_stkUnsolResponse);
+        s_stkUnsolResponse = NULL;
+    }
+}
+
 static int getSimlockRemainTimes(const char* type)
 {
     int err = -1;
@@ -1397,6 +1408,9 @@ static void requestGetSimStatus(void* data, size_t datalen, RIL_Token t)
     if (result == RIL_E_SUCCESS) {
         p_buffer = (char*)p_card_status;
         buffer_size = sizeof(*p_card_status);
+        if (p_card_status->card_state != RIL_CARDSTATE_PRESENT) {
+            resetStkState();
+        }
     } else {
         p_buffer = NULL;
         buffer_size = 0;
