@@ -720,6 +720,42 @@ static void unsolicitedSuppSvcNotification(int notificationType,
     RIL_onUnsolicitedResponse(RIL_UNSOL_SUPP_SVC_NOTIFICATION, &response, sizeof(RIL_SuppSvcNotification));
 }
 
+static void suppSvcChanged(const char* s)
+{
+    char *line = NULL, *p = NULL;
+    int call_index = -1;
+
+    line = p = strdup(s);
+    if (!line) {
+        RLOGE("%s: Unable to allocate memory for %s.", __func__, s);
+        return;
+    }
+
+    if (at_tok_start(&p) < 0) {
+        RLOGE("%s: invalid response string (%s)", __func__, s);
+        free(line);
+        return;
+    }
+
+    if (at_tok_nextint(&p, &call_index) < 0) {
+        RLOGE("%s: invalid string args (%s).", __func__, s);
+        free(line);
+        return;
+    }
+
+    if (strStartsWith(s, "HOLD: ")) {
+        unsolicitedSuppSvcNotification(1, 2, call_index, 0, NULL);
+    } else if (strStartsWith(s, "UNHOLD: ")) {
+        unsolicitedSuppSvcNotification(1, 3, call_index, 0, NULL);
+    } else if (strStartsWith(s, "MPTY: ")) {
+        unsolicitedSuppSvcNotification(1, 4, call_index, 0, NULL);
+    } else if (strStartsWith(s, "UNMPTY: ")) {
+        unsolicitedSuppSvcNotification(1, 10, call_index, 0, NULL);
+    }
+
+    free(line);
+}
+
 static void unsolicitedEccListChanged(const char* s)
 {
     char* ecc_list[MAX_ECC_COUNT] = { NULL };
@@ -1671,21 +1707,12 @@ bool try_handle_unsol_call(const char* s)
         RLOGI("Receive call state changed URC with data");
         unsolicitedCallStateChanged(s);
         ret = true;
-    } else if (strStartsWith(s, "HOLD")) {
-        RLOGI("Receive supplementary service URC(Remote HOLD)");
-        unsolicitedSuppSvcNotification(1, 2, 0, 0, NULL);
-        ret = true;
-    } else if (strStartsWith(s, "UNHOLD")) {
-        RLOGI("Receive supplementary service URC(Remote UNHOLD)");
-        unsolicitedSuppSvcNotification(1, 3, 0, 0, NULL);
-        ret = true;
-    } else if (strStartsWith(s, "MPTY")) {
-        RLOGI("Receive supplementary service URC(Remote MPTY)");
-        unsolicitedSuppSvcNotification(1, 4, 0, 0, NULL);
-        ret = true;
-    } else if (strStartsWith(s, "UNMPTY")) {
-        RLOGI("Receive supplementary service URC(Remote UNMPTY)");
-        unsolicitedSuppSvcNotification(1, 10, 0, 0, NULL);
+    } else if (strStartsWith(s, "HOLD: ")
+        || strStartsWith(s, "UNHOLD: ")
+        || strStartsWith(s, "MPTY: ")
+        || strStartsWith(s, "UNMPTY: ")) {
+        RLOGI("Receive supplementary service URC(%s)", s);
+        suppSvcChanged(s);
         ret = true;
     } else if (strStartsWith(s, "+WSOS: ")) {
         RLOGI("Receive emergency mode changed URC");
