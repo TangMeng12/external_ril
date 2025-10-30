@@ -765,7 +765,6 @@ static void unsolicitedEccListChanged(const char* s)
     line = p = strdup(s);
     if (!line) {
         RLOGE("+ECCL: Unable to allocate memory");
-        free(line);
         return;
     }
 
