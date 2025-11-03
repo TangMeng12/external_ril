@@ -2623,16 +2623,17 @@ static int responseSimStatus(Parcel& p, void* response, size_t responselen)
         return RIL_ERRNO_INVALID_RESPONSE;
     }
 
-    if (responselen == sizeof(RIL_CardStatus_v6)) {
-        RIL_CardStatus_v6* p_cur = ((RIL_CardStatus_v6*)response);
+    if (responselen == sizeof(RIL_CardStatus_v1_5)) {
+        RIL_CardStatus_v1_5* p_cur = ((RIL_CardStatus_v1_5*)response);
 
-        p.writeInt32(p_cur->card_state);
-        p.writeInt32(p_cur->universal_pin_state);
-        p.writeInt32(p_cur->gsm_umts_subscription_app_index);
-        p.writeInt32(p_cur->cdma_subscription_app_index);
-        p.writeInt32(p_cur->ims_subscription_app_index);
+        p.writeInt32(p_cur->base.base.base.card_state);
+        p.writeInt32(p_cur->base.base.base.universal_pin_state);
+        p.writeInt32(p_cur->base.base.base.gsm_umts_subscription_app_index);
+        p.writeInt32(p_cur->base.base.base.cdma_subscription_app_index);
+        p.writeInt32(p_cur->base.base.base.ims_subscription_app_index);
 
-        sendSimStatusAppInfo(p, p_cur->num_applications, p_cur->applications);
+        sendSimStatusAppInfo(p, p_cur->base.base.base.num_applications,
+            p_cur->base.base.base.applications);
     } else {
         RLOGE("responseSimStatus: RilCardStatus version error\n");
         return RIL_ERRNO_INVALID_RESPONSE;

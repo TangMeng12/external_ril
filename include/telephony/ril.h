@@ -915,6 +915,106 @@ typedef struct
 } RIL_CardStatus_v6;
 
 typedef struct {
+    RIL_CardStatus_v6 base;
+
+    uint32_t physicalSlotId;
+    /**
+     * An Answer To Reset (ATR) is a message output by a Smart Card conforming to ISO/IEC 7816
+     * standards, following electrical reset of the card's chip. The ATR conveys information about
+     * the communication parameters proposed by the card, and the card's nature and state.
+     *
+     * This data is applicable only when cardState is CardState:PRESENT.
+     */
+    char* atr;
+    /**
+     * Integrated Circuit Card IDentifier (ICCID) is Unique Identifier of the SIM CARD. File is
+     * located in the SIM card at EFiccid (0x2FE2) as per ETSI 102.221. The ICCID is defined by
+     * the ITU-T recommendation E.118 ISO/IEC 7816.
+     *
+     * This data is applicable only when cardState is CardState:PRESENT.
+     */
+    char* iccid;
+} RIL_CardStatus_v1_2;
+
+typedef struct {
+    RIL_CardStatus_v1_2 base;
+    char* eid; /* The EID is the eUICC identifier. The EID shall be stored within the ECASD
+                * and can be retrieved by the Device at any time using the standard GlobalPlatform
+                * GET DATA command.
+                *
+                * This data is mandatory and applicable only when cardState is CardState:PRESENT
+                * and SIM card supports eUICC. */
+} RIL_CardStatus_v1_4;
+
+typedef enum {
+    RIL_PERSOSUBSTATE_UNKNOWN_1_5 = 0, /* initial state */
+    RIL_PERSOSUBSTATE_IN_PROGRESS_1_5 = 1, /* in between each lock transition */
+    RIL_PERSOSUBSTATE_READY_1_5 = 2, /* when either SIM or RUIM Perso is finished
+                                      * since each app can only have 1 active perso
+                                      * involved */
+    RIL_PERSOSUBSTATE_SIM_NETWORK_1_5 = 3,
+    RIL_PERSOSUBSTATE_SIM_NETWORK_SUBSET_1_5 = 4,
+    RIL_PERSOSUBSTATE_SIM_CORPORATE_1_5 = 5,
+    RIL_PERSOSUBSTATE_SIM_SERVICE_PROVIDER_1_5 = 6,
+    RIL_PERSOSUBSTATE_SIM_SIM_1_5 = 7,
+    RIL_PERSOSUBSTATE_SIM_NETWORK_PUK_1_5 = 8, /* The corresponding perso lock is blocked */
+    RIL_PERSOSUBSTATE_SIM_NETWORK_SUBSET_PUK_1_5 = 9,
+    RIL_PERSOSUBSTATE_SIM_CORPORATE_PUK_1_5 = 10,
+    RIL_PERSOSUBSTATE_SIM_SERVICE_PROVIDER_PUK_1_5 = 11,
+    RIL_PERSOSUBSTATE_SIM_SIM_PUK_1_5 = 12,
+    RIL_PERSOSUBSTATE_RUIM_NETWORK1_1_5 = 13,
+    RIL_PERSOSUBSTATE_RUIM_NETWORK2_1_5 = 14,
+    RIL_PERSOSUBSTATE_RUIM_HRPD_1_5 = 15,
+    RIL_PERSOSUBSTATE_RUIM_CORPORATE_1_5 = 16,
+    RIL_PERSOSUBSTATE_RUIM_SERVICE_PROVIDER_1_5 = 17,
+    RIL_PERSOSUBSTATE_RUIM_RUIM_1_5 = 18,
+    RIL_PERSOSUBSTATE_RUIM_NETWORK1_PUK_1_5 = 19, /* The corresponding perso lock is blocked */
+    RIL_PERSOSUBSTATE_RUIM_NETWORK2_PUK_1_5 = 20,
+    RIL_PERSOSUBSTATE_RUIM_HRPD_PUK_1_5 = 21,
+    RIL_PERSOSUBSTATE_RUIM_CORPORATE_PUK_1_5 = 22,
+    RIL_PERSOSUBSTATE_RUIM_SERVICE_PROVIDER_PUK_1_5 = 23,
+    RIL_PERSOSUBSTATE_RUIM_RUIM_PUK_1_5 = 24,
+    /**
+     * The device is personalized using the content of the Service Provider Name (SPN) in the SIM
+     * card. */
+    RIL_PERSOSUBSTATE_SIM_SPN,
+    RIL_PERSOSUBSTATE_SIM_SPN_PUK,
+    /**
+     * Service Provider and Equivalent Home PLMN
+     * The device is personalized using both the content of the GID1 (equivalent to service
+     * provider personalization) and the content of the Equivalent Home PLMN (EHPLMN) in the
+     * SIM card. If the GID1 in the SIM is absent, then just the content of the Equivalent
+     * Home PLMN is matched. */
+    RIL_PERSOSUBSTATE_SIM_SP_EHPLMN,
+    RIL_PERSOSUBSTATE_SIM_SP_EHPLMN_PUK,
+    /* Device is personalized using the first digits of the ICCID of the SIM card. */
+    RIL_PERSOSUBSTATE_SIM_ICCID,
+    RIL_PERSOSUBSTATE_SIM_ICCID_PUK,
+    /* Device is personalized using the content of the IMPI in the ISIM. */
+    RIL_PERSOSUBSTATE_SIM_IMPI,
+    RIL_PERSOSUBSTATE_SIM_IMPI_PUK,
+    /**
+     * Network Subset and Service Provider
+     * Device is personalized using both the content of GID1 (equivalent to service provider
+     * personalization) and the first digits of the IMSI (equivalent to network subset
+     * personalization). */
+    RIL_PERSOSUBSTATE_SIM_NS_SP,
+    RIL_PERSOSUBSTATE_SIM_NS_SP_PUK,
+} RIL_PersoSubstateV1_5;
+
+typedef struct {
+    RIL_AppStatus base;
+    RIL_PersoSubstateV1_5 persoSubstate;
+} RIL_AppStatusV1_5;
+
+typedef struct {
+    RIL_CardStatus_v1_4 base;
+
+    /* size <= RadioConst::CARD_MAX_APPS */
+    RIL_AppStatusV1_5 applications[RIL_CARD_MAX_APPS];
+} RIL_CardStatus_v1_5; // 1.5
+
+typedef struct {
     int session_id;
     int select_response;
 } RIL_Sim_Open_Channel;

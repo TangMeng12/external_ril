@@ -686,13 +686,36 @@ void pollSIMState(void* param)
 }
 
 /* Free the card status returned by getCardStatus */
-static void freeCardStatus(RIL_CardStatus_v6* p_card_status)
+static void freeCardStatus(RIL_CardStatus_v1_5* p_card_status)
 {
     if (p_card_status == NULL) {
         return;
     }
 
+    free(p_card_status->base.base.iccid);
     free(p_card_status);
+}
+
+static void getIccId(char* iccid, int size)
+{
+    int err = -1;
+    ATResponse* p_response = NULL;
+
+    if (iccid == NULL) {
+        RLOGE("iccid buffer is null");
+        return;
+    }
+
+    err = at_send_command_numeric("AT+CICCID", &p_response);
+    if (err != AT_ERROR_OK || !p_response || p_response->success != AT_OK) {
+        RLOGE("Failure occurred in sending %s due to: %s", "AT+CICCID", at_io_err_str(err));
+        goto on_exit;
+    }
+
+    snprintf(iccid, size, "%s", p_response->p_intermediates->line);
+
+on_exit:
+    at_response_free(p_response);
 }
 
 /**
@@ -701,7 +724,7 @@ static void freeCardStatus(RIL_CardStatus_v6* p_card_status)
  * This must be freed using freeCardStatus.
  * @return: On success returns RIL_E_SUCCESS
  */
-static int getCardStatus(RIL_CardStatus_v6** pp_card_status)
+static int getCardStatus(RIL_CardStatus_v1_5** pp_card_status)
 {
     static RIL_AppStatus app_status_array[] = {
         // SIM_ABSENT = 0
@@ -773,33 +796,41 @@ static int getCardStatus(RIL_CardStatus_v6** pp_card_status)
     }
 
     // Allocate and initialize base card status.
-    RIL_CardStatus_v6* p_card_status = calloc(1, sizeof(RIL_CardStatus_v6));
-    p_card_status->card_state = card_state;
-    p_card_status->universal_pin_state = RIL_PINSTATE_UNKNOWN;
-    p_card_status->gsm_umts_subscription_app_index = -1;
-    p_card_status->cdma_subscription_app_index = -1;
-    p_card_status->ims_subscription_app_index = -1;
-    p_card_status->num_applications = num_apps;
+    RIL_CardStatus_v1_5* p_card_status = calloc(1, sizeof(RIL_CardStatus_v1_5));
+    p_card_status->base.base.base.card_state = card_state;
+    p_card_status->base.base.base.universal_pin_state = RIL_PINSTATE_UNKNOWN;
+    p_card_status->base.base.base.gsm_umts_subscription_app_index = -1;
+    p_card_status->base.base.base.cdma_subscription_app_index = -1;
+    p_card_status->base.base.base.ims_subscription_app_index = -1;
+    p_card_status->base.base.base.num_applications = num_apps;
+    p_card_status->base.base.physicalSlotId = 0;
+    p_card_status->base.base.atr = NULL;
+    p_card_status->base.base.iccid = NULL;
+    p_card_status->base.eid = "";
+    if (sim_status != SIM_ABSENT) {
+        p_card_status->base.base.iccid = (char*)calloc(64, sizeof(char));
+        getIccId(p_card_status->base.base.iccid, 64);
+    }
 
     // Initialize application status
     int i;
     for (i = 0; i < RIL_CARD_MAX_APPS; i++) {
-        p_card_status->applications[i] = app_status_array[SIM_ABSENT];
+        p_card_status->base.base.base.applications[i] = app_status_array[SIM_ABSENT];
     }
 
     RLOGD("enter getCardStatus module, num_apps= %d", num_apps);
     // Pickup the appropriate application status
     // that reflects sim_status for gsm.
     if (num_apps != 0) {
-        p_card_status->num_applications = 3;
-        p_card_status->gsm_umts_subscription_app_index = 0;
-        p_card_status->cdma_subscription_app_index = 1;
-        p_card_status->ims_subscription_app_index = 2;
+        p_card_status->base.base.base.num_applications = 3;
+        p_card_status->base.base.base.gsm_umts_subscription_app_index = 0;
+        p_card_status->base.base.base.cdma_subscription_app_index = 1;
+        p_card_status->base.base.base.ims_subscription_app_index = 2;
 
         // Get the correct app status
-        p_card_status->applications[0] = app_status_array[sim_status];
-        p_card_status->applications[1] = app_status_array[sim_status + RUIM_ABSENT];
-        p_card_status->applications[2] = app_status_array[sim_status + ISIM_ABSENT];
+        p_card_status->base.base.base.applications[0] = app_status_array[sim_status];
+        p_card_status->base.base.base.applications[1] = app_status_array[sim_status + RUIM_ABSENT];
+        p_card_status->base.base.base.applications[2] = app_status_array[sim_status + ISIM_ABSENT];
     }
 
     *pp_card_status = p_card_status;
@@ -1400,7 +1431,7 @@ on_exit:
 
 static void requestGetSimStatus(void* data, size_t datalen, RIL_Token t)
 {
-    RIL_CardStatus_v6* p_card_status = NULL;
+    RIL_CardStatus_v1_5* p_card_status = NULL;
     char* p_buffer;
     int buffer_size;
 
@@ -1408,7 +1439,7 @@ static void requestGetSimStatus(void* data, size_t datalen, RIL_Token t)
     if (result == RIL_E_SUCCESS) {
         p_buffer = (char*)p_card_status;
         buffer_size = sizeof(*p_card_status);
-        if (p_card_status->card_state != RIL_CARDSTATE_PRESENT) {
+        if (p_card_status->base.base.base.card_state != RIL_CARDSTATE_PRESENT) {
             resetStkState();
         }
     } else {
