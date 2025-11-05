@@ -1,52 +1,73 @@
-#!/bin/sh
 rilreq_tool 0 0
-rilreq_tool 0 1
-rilreq_tool 0 0
+sleep 40
 rilreq_tool 0 8
-rilreq_tool 0 9
-rilreq_tool 0 8
+sleep 10
 rilreq_tool 0 2
+sleep 5
 rilreq_tool 0 3
-rilreq_tool 0 4
+sleep 5
 rilreq_tool 0 5
+sleep 5
 rilreq_tool 0 6
+sleep 5
 rilreq_tool 0 7
-rilreq_tool 0 10
-rilreq_tool 0 11
-rilreq_tool 0 12
-rilreq_tool 0 13
-rilreq_tool 0 15
-rilreq_tool 0 12
-rilreq_tool 0 16
+sleep 5
+rilreq_tool 0 9
+sleep 15
+rilreq_tool 0 8
+sleep 15
 rilreq_tool 0 17
+sleep 5
 rilreq_tool 0 18
-rilreq_tool 0 19
-rilreq_tool 0 20
-rilreq_tool 0 21
-rilreq_tool 0 22
-rilreq_tool 0 23
-rilreq_tool 0 22
-rilreq_tool 0 24
-rilreq_tool 0 25
-rilreq_tool 0 26
-rilreq_tool 0 27
-rilreq_tool 0 28
-rilreq_tool 0 29
-rilreq_tool 0 30
-rilreq_tool 0 29
-rilreq_tool 0 31
-rilreq_tool 0 32
-rilreq_tool 0 33
-rilreq_tool 0 34
-rilreq_tool 0 35
-rilreq_tool 0 36
-rilreq_tool 0 40
-rilreq_tool 0 37
-rilreq_tool 0 38
-rilreq_tool 0 39
-rilreq_tool 0 41
-rilreq_tool 0 42
+sleep 5
 rilreq_tool 0 43
+sleep 10
 rilreq_tool 0 44
-rilreq_tool 0 45
+sleep 10
+rilreq_tool 0 10
+sleep 10
+rilreq_tool 0 11
+sleep 5
+rilreq_tool 0 13
+sleep 5
+rilreq_tool 0 19
+sleep 5
+rilreq_tool 0 20
+sleep 5
+rilreq_tool 0 21
+sleep 5
+rilreq_tool 0 23
+sleep 10
+rilreq_tool 0 22
+sleep 10
+rilreq_tool 0 25
+sleep 10
+rilreq_tool 0 26
+sleep 5
+rilreq_tool 0 27
+sleep 5
+rilreq_tool 0 28
+sleep 5
+rilreq_tool 0 29
+sleep 5
+rilreq_tool 0 30
+sleep 5
+rilreq_tool 0 29
+sleep 5
+rilreq_tool 0 31
+sleep 5
+rilreq_tool 0 32
+sleep 5
+rilreq_tool 0 33
+sleep 5
+rilreq_tool 0 34
+sleep 5
+rilreq_tool 0 39
+sleep 5
+rilreq_tool 0 40
+sleep 5
+rilreq_tool 0 41
+sleep 10
+rilreq_tool 0 42
+sleep 10
 rilreq_tool 0 1
