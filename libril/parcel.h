@@ -51,13 +51,13 @@ public:
     void* writeInplace(size_t len);
     status_t writeInt32(int32_t val);
     status_t writeInt64(int64_t val);
-    status_t writeString16(const char16_t* str, size_t len);
+    status_t writeString8(const char* str, size_t len);
 
     status_t read(void* outData, size_t len) const;
     const void* readInplace(size_t len) const;
     int32_t readInt32() const;
     status_t readInt32(int32_t* pArg) const;
-    const char16_t* readString16Inplace(size_t* outLen) const;
+    const char* readString8Inplace(size_t* outLen) const;
 
     status_t finishWrite(size_t len);
     status_t growData(size_t len);

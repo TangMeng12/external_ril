@@ -58,21 +58,16 @@ static const char* requestToString(int request);
 
 static char* strdupReadString(Parcel& p)
 {
-    size_t stringlen;
-    const char16_t* s16;
+    size_t l;
+    const char* s;
 
-    s16 = p.readString16Inplace(&stringlen);
-
-    return strndup16to8(s16, stringlen);
+    s = p.readString8Inplace(&l);
+    return s ? strndup(s, l) : NULL;
 }
 
 static void writeStringToParcel(Parcel& p, const char* s)
 {
-    char16_t* s16;
-    size_t s16_len;
-    s16 = strdup8to16(s, &s16_len);
-    p.writeString16(s16, s16_len);
-    free(s16);
+    p.writeString8(s, s ? strlen(s) : 0);
 }
 
 static struct ril_test_case cases[] = {

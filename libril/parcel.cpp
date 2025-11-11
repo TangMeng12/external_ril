@@ -244,7 +244,7 @@ status_t Parcel::writeInt64(int64_t val)
     return writeAligned(val);
 }
 
-status_t Parcel::writeString16(const char16_t* str, size_t len)
+status_t Parcel::writeString8(const char* str, size_t len)
 {
     if (str == nullptr)
         return writeInt32(-1);
@@ -252,11 +252,10 @@ status_t Parcel::writeString16(const char16_t* str, size_t len)
     // NOTE: Keep this logic in sync with android_os_Parcel.cpp
     status_t err = writeInt32(len);
     if (err == NO_ERROR) {
-        len *= sizeof(char16_t);
-        uint8_t* data = (uint8_t*)writeInplace(len + sizeof(char16_t));
+        uint8_t* data = (uint8_t*)writeInplace(len + sizeof(char));
         if (data) {
             memcpy(data, str, len);
-            *reinterpret_cast<char16_t*>(data + len) = 0;
+            *reinterpret_cast<char*>(data + len) = 0;
             return NO_ERROR;
         }
         err = mError;
@@ -360,15 +359,15 @@ int32_t Parcel::readInt32() const
     return readAligned<int32_t>();
 }
 
-const char16_t* Parcel::readString16Inplace(size_t* outLen) const
+const char* Parcel::readString8Inplace(size_t* outLen) const
 {
     int32_t size = readInt32();
     // watch for potential int overflow from size + 1
     if (size >= 0 && size < INT32_MAX) {
         *outLen = size;
-        const char16_t* str = (const char16_t*)readInplace((size + 1) * sizeof(char16_t));
+        const char* str = (const char*)readInplace(size + 1);
         if (str != nullptr) {
-            if (str[size] == u'\0') {
+            if (str[size] == '\0') {
                 return str;
             }
         }
