@@ -37,11 +37,9 @@ public:
     size_t dataSize() const;
     size_t dataAvail() const;
     size_t dataPosition() const;
-    size_t dataCapacity() const;
 
     status_t setDataSize(size_t size);
     void setDataPosition(size_t pos) const;
-    status_t setDataCapacity(size_t size);
     status_t setData(const uint8_t* buffer, size_t len);
     status_t appendFrom(const Parcel* parcel, size_t start, size_t len);
 

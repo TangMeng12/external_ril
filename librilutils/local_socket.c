@@ -30,15 +30,6 @@
 
 #include <local_socket.h>
 #include <telephony/ril.h>
-#define UTF16_REPLACEMENT_CHAR 0xfffd
-
-#define UTF8_SEQ_LENGTH(ch) (((0xe5000000 >> ((ch >> 3) & 0x1e)) & 3) + 1)
-
-#define UTF8_SHIFT_AND_MASK(unicode, byte) \
-    (unicode) <<= 6;                       \
-    (unicode) |= (0x3f & (byte));
-
-#define UNICODE_UPPER_LIMIT 0x10fffd
 
 int local_get_control_socket(const char* name)
 {

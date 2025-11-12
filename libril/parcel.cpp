@@ -76,11 +76,6 @@ size_t Parcel::dataPosition() const
     return mDataPos;
 }
 
-size_t Parcel::dataCapacity() const
-{
-    return mDataCapacity;
-}
-
 void Parcel::setDataPosition(size_t pos) const
 {
     if (pos > INT32_MAX) {
@@ -90,20 +85,6 @@ void Parcel::setDataPosition(size_t pos) const
     }
 
     mDataPos = pos;
-}
-
-status_t Parcel::setDataCapacity(size_t size)
-{
-    if (size > INT32_MAX) {
-        // don't accept size_t values which may have come from an
-        // inadvertent conversion from a negative int.
-        return BAD_VALUE;
-    }
-
-    if (size > mDataCapacity)
-        return continueWrite(size);
-
-    return NO_ERROR;
 }
 
 status_t Parcel::setData(const uint8_t* buffer, size_t len)

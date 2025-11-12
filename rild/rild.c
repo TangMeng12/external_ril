@@ -29,9 +29,6 @@
 
 #include <local_socket.h>
 #include <telephony/ril.h>
-#define LIB_PATH_PROPERTY "rild.libpath"
-#define LIB_ARGS_PROPERTY "rild.libargs"
-#define MAX_LIB_ARGS 16
 
 extern void RIL_register(const RIL_RadioFunctions* callbacks);
 
