@@ -28,8 +28,6 @@
 #include <local_socket.h>
 #include <telephony/ril.h>
 
-#define SOCKET_NAME_RIL "rild"
-
 static const char* ENV[32];
 
 int add_environment(const char* key, const char* val)
@@ -69,16 +67,14 @@ static void publish_socket(const char* name, int fd)
 
 int ril_socket_init(void)
 {
-    char* name = SOCKET_NAME_RIL;
     int serverScoket;
-    int socket_type = SOCK_STREAM;
 
-    serverScoket = ril_socket_create(name, socket_type);
+    serverScoket = ril_socket_create();
     RLOGD("start ril_socket_create success %d\n", serverScoket);
 
     if (serverScoket >= 0) {
         // put it into envirment
-        publish_socket(name, serverScoket);
+        publish_socket(SOCKET_NAME_RIL, serverScoket);
         return 0;
     } else {
         return -1;
