@@ -663,6 +663,7 @@ static void onRequest(int request, void* data, size_t datalen, RIL_Token t)
         case RIL_REQUEST_SET_UNSOL_CELL_INFO_LIST_RATE:
         case RIL_REQUEST_VOICE_RADIO_TECH:
         case RIL_REQUEST_SCREEN_STATE:
+        case RIL_REQUEST_GET_HARDWARE_CONFIG:
         case RIL_REQUEST_ENABLE_MODEM:
         case RIL_REQUEST_GET_MODEM_STATUS:
         case RIL_REQUEST_GSM_GET_BROADCAST_SMS_CONFIG:
