@@ -35,9 +35,6 @@ struct ril_event {
     void* param;
 };
 
-// Initialize internal data structs
-void ril_event_init(void);
-
 // Initialize an event
 void ril_event_set(struct ril_event* ev, int fd, bool persist, ril_event_cb func, void* param);
 

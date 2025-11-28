@@ -2902,7 +2902,6 @@ extern "C" void RIL_startEventLoop(void)
         exit(-1);
     }
 
-    ril_event_init();
     ret = pipe(filedes);
 
     if (ret < 0) {

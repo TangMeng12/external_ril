@@ -28,11 +28,9 @@
 #include <telephony/ril.h>
 #include <telephony/ril_log.h>
 
-static pthread_mutex_t listMutex;
+static pthread_mutex_t listMutex = PTHREAD_MUTEX_INITIALIZER;
 #define MUTEX_ACQUIRE() pthread_mutex_lock(&listMutex)
 #define MUTEX_RELEASE() pthread_mutex_unlock(&listMutex)
-#define MUTEX_INIT() pthread_mutex_init(&listMutex, NULL)
-#define MUTEX_DESTROY() pthread_mutex_destroy(&listMutex)
 
 #ifndef timeradd
 #define timeradd(tvp, uvp, vvp)                           \
@@ -69,8 +67,8 @@ static fd_set readFds;
 static int nfds = 0;
 
 static struct ril_event* watch_table[MAX_FD_EVENTS];
-static struct ril_event timer_list;
-static struct ril_event pending_list;
+static struct ril_event timer_list = { &timer_list, &timer_list, -1 };
+static struct ril_event pending_list = { &pending_list, &pending_list, -1 };
 
 #define DEBUG 0
 
@@ -103,14 +101,6 @@ static void getNow(struct timeval* tv)
     clock_gettime(CLOCK_MONOTONIC, &ts);
     tv->tv_sec = ts.tv_sec;
     tv->tv_usec = ts.tv_nsec / 1000;
-}
-
-static void init_list(struct ril_event* list)
-{
-    memset(list, 0, sizeof(struct ril_event));
-    list->next = list;
-    list->prev = list;
-    list->fd = -1;
 }
 
 static void addToList(struct ril_event* ev, struct ril_event* list)
@@ -238,17 +228,6 @@ static int calcNextTimeout(struct timeval* tv)
         tv->tv_sec = tv->tv_usec = 0;
     }
     return 0;
-}
-
-// Initialize internal data structs
-void ril_event_init(void)
-{
-    MUTEX_INIT();
-
-    FD_ZERO(&readFds);
-    init_list(&timer_list);
-    init_list(&pending_list);
-    memset(watch_table, 0, sizeof(watch_table));
 }
 
 // Initialize an event
