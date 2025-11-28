@@ -1504,7 +1504,7 @@ static void dispatchDataProfile(Parcel& p, RequestInfo* pRI)
     if (dataProfiles == NULL) {
         RLOGE("%s: Memory allocation failed for request %s", __func__,
             requestToString(pRI->pCI->requestNumber));
-        return;
+        goto invalid;
     }
 
     dataProfilePtrs = (RIL_DataProfileInfo**)calloc(num, sizeof(RIL_DataProfileInfo*));
@@ -1512,18 +1512,19 @@ static void dispatchDataProfile(Parcel& p, RequestInfo* pRI)
         RLOGE("%s: Memory allocation failed for request %s", __func__,
             requestToString(pRI->pCI->requestNumber));
         free(dataProfiles);
-        return;
+        goto invalid;
     }
 
     startRequest;
     index = 0;
     for (int i = 0; i < num; i++) {
+        index = i;
+
         dataProfilePtrs[i] = &dataProfiles[i];
 
         status = p.readInt32(&t);
         if (status != NO_ERROR) {
             RLOGE("%s: Index (%d) failed to read profileId.", __func__, i);
-            index = i;
             goto cleanup;
         }
         dataProfiles[i].profileId = (int)t;
@@ -1531,43 +1532,29 @@ static void dispatchDataProfile(Parcel& p, RequestInfo* pRI)
         dataProfiles[i].apn = strdupReadString(p);
         if (dataProfiles[i].apn == NULL) {
             RLOGE("%s: Index (%d) failed to read apn.", __func__, i);
-            index = i;
             goto cleanup;
         }
 
         dataProfiles[i].protocol = strdupReadString(p);
         if (dataProfiles[i].protocol == NULL) {
             RLOGE("%s: Index (%d) failed to read protocol.", __func__, i);
-            index = i;
             goto cleanup;
         }
 
         status = p.readInt32(&t);
         if (status != NO_ERROR) {
             RLOGE("%s: Index (%d) failed to read authType.", __func__, i);
-            index = i;
             goto cleanup;
         }
         dataProfiles[i].authType = (int)t;
 
         dataProfiles[i].user = strdupReadString(p);
-        if (dataProfiles[i].user == NULL) {
-            RLOGE("%s: Index (%d) failed to read user.", __func__, i);
-            index = i;
-            goto cleanup;
-        }
 
         dataProfiles[i].password = strdupReadString(p);
-        if (dataProfiles[i].password == NULL) {
-            RLOGE("%s: Index (%d) failed to read password.", __func__, i);
-            index = i;
-            goto cleanup;
-        }
 
         status = p.readInt32(&t);
         if (status != NO_ERROR) {
             RLOGE("%s: Index (%d) failed to read type.", __func__, i);
-            index = i;
             goto cleanup;
         }
         dataProfiles[i].type = (int)t;
@@ -1575,7 +1562,6 @@ static void dispatchDataProfile(Parcel& p, RequestInfo* pRI)
         status = p.readInt32(&t);
         if (status != NO_ERROR) {
             RLOGE("%s: Index (%d) failed to read maxConnsTime.", __func__, i);
-            index = i;
             goto cleanup;
         }
         dataProfiles[i].maxConnsTime = (int)t;
@@ -1583,7 +1569,6 @@ static void dispatchDataProfile(Parcel& p, RequestInfo* pRI)
         status = p.readInt32(&t);
         if (status != NO_ERROR) {
             RLOGE("%s: Index (%d) failed to read maxConns.", __func__, i);
-            index = i;
             goto cleanup;
         }
         dataProfiles[i].maxConns = (int)t;
@@ -1591,7 +1576,6 @@ static void dispatchDataProfile(Parcel& p, RequestInfo* pRI)
         status = p.readInt32(&t);
         if (status != NO_ERROR) {
             RLOGE("%s: Index (%d) failed to read waitTime.", __func__, i);
-            index = i;
             goto cleanup;
         }
         dataProfiles[i].waitTime = (int)t;
@@ -1599,17 +1583,20 @@ static void dispatchDataProfile(Parcel& p, RequestInfo* pRI)
         status = p.readInt32(&t);
         if (status != NO_ERROR) {
             RLOGE("%s: Index (%d) failed to read enabled.", __func__, i);
-            index = i;
             goto cleanup;
         }
         dataProfiles[i].enabled = (int)t;
 
-        appendPrintBuf("[%d: profileId=%d, apn =%s, protocol =%s, authType =%d, "
-                       "user =%s, password =%s, type =%d, maxConnsTime =%d, maxConns =%d, "
-                       "waitTime =%d, enabled =%d]",
+        appendPrintBuf("[%d: profileId=%d, apn=%s, protocol=%s, authType=%d, "
+                       "user=%s, password=%s, type=%d, maxConnsTime=%d, maxConns=%d, "
+                       "waitTime=%d, enabled=%d]",
             i, dataProfiles[i].profileId,
-            dataProfiles[i].apn, dataProfiles[i].protocol, dataProfiles[i].authType,
-            dataProfiles[i].user, dataProfiles[i].password, dataProfiles[i].type,
+            dataProfiles[i].apn,
+            dataProfiles[i].protocol,
+            dataProfiles[i].authType,
+            dataProfiles[i].user ? dataProfiles[i].user : "",
+            dataProfiles[i].password ? dataProfiles[i].password : "",
+            dataProfiles[i].type,
             dataProfiles[i].maxConnsTime, dataProfiles[i].maxConns,
             dataProfiles[i].waitTime, dataProfiles[i].enabled);
     }
@@ -1622,22 +1609,25 @@ static void dispatchDataProfile(Parcel& p, RequestInfo* pRI)
         num * sizeof(RIL_DataProfileInfo*),
         pRI);
 
-#ifdef MEMSET_FREED
-    memset(dataProfiles, 0, num * sizeof(RIL_DataProfileInfo));
-    memset(dataProfilePtrs, 0, num * sizeof(RIL_DataProfileInfo*));
-#endif
     for (int i = 0; i < num; i++) {
         free(dataProfiles[i].apn);
         free(dataProfiles[i].protocol);
         free(dataProfiles[i].user);
         free(dataProfiles[i].password);
     }
+
+#ifdef MEMSET_FREED
+    memset(dataProfiles, 0, num * sizeof(RIL_DataProfileInfo));
+    memset(dataProfilePtrs, 0, num * sizeof(RIL_DataProfileInfo*));
+#endif
+
     free(dataProfiles);
     free(dataProfilePtrs);
 
     return;
 
 cleanup:
+    closeRequest;
     for (int j = 0; j <= index; j++) {
         free(dataProfiles[j].apn);
         free(dataProfiles[j].protocol);
