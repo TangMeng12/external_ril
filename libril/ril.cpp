@@ -134,11 +134,6 @@ static inline void ril_do_append_print_buf(const char* format, ...)
 #define appendPrintBuf(x...)
 #endif
 
-enum WakeType {
-    DONT_WAKE,
-    WAKE_PARTIAL
-};
-
 typedef struct {
     int requestNumber;
     void (*dispatchFunction)(Parcel& p, struct RequestInfo* pRI);
@@ -148,7 +143,6 @@ typedef struct {
 typedef struct {
     int requestNumber;
     int (*responseFunction)(Parcel& p, void* response, size_t responselen);
-    WakeType wakeType;
 } UnsolResponseInfo;
 
 typedef struct RequestInfo {
@@ -227,10 +221,6 @@ static pthread_mutex_t s_pendingRequestsMutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t s_writeMutex = PTHREAD_MUTEX_INITIALIZER;
 static RequestInfo* s_pendingRequests = NULL;
 
-static const struct timeval TIMEVAL_WAKE_TIMEOUT = { 1, 0 };
-
-static UserCallbackInfo* s_last_wake_timeout_info = NULL;
-
 static void* s_lastNITZTimeData = NULL;
 static size_t s_lastNITZTimeDataSize;
 
@@ -289,8 +279,6 @@ extern "C" void RIL_onUnsolicitedResponse(int unsolResponse, const void* data,
 
 static UserCallbackInfo* internalRequestTimedCallback(RIL_TimedCallback callback, void* param,
     const struct timeval* relativeTime);
-
-static void wakeTimeoutCallback(void* param);
 
 /* Index == requestNumber */
 static CommandInfo s_commands[] = {
@@ -2862,14 +2850,7 @@ static void userTimerCallback(int fd, short flags, void* param)
     UserCallbackInfo* p_info;
 
     p_info = (UserCallbackInfo*)param;
-
     p_info->p_callback(p_info->userParam);
-
-    // FIXME generalize this...there should be a cancel mechanism
-    if (s_last_wake_timeout_info != NULL && s_last_wake_timeout_info == p_info) {
-        s_last_wake_timeout_info = NULL;
-    }
-
     free(p_info);
 }
 
@@ -3067,24 +3048,6 @@ done:
     free(pRI);
 }
 
-static void grabPartialWakeLock()
-{
-    // acquire_wake_lock(PARTIAL_WAKE_LOCK, ANDROID_WAKE_LOCK_NAME);
-}
-
-static void releaseWakeLock()
-{
-    // release_wake_lock(ANDROID_WAKE_LOCK_NAME);
-}
-
-static void wakeTimeoutCallback(void* param)
-{
-    // We're using "param != NULL" as a cancellation mechanism
-    if (param == NULL) {
-        releaseWakeLock();
-    }
-}
-
 static int decodeVoiceRadioTechnology(RIL_RadioState radioState)
 {
     switch (radioState) {
@@ -3189,7 +3152,6 @@ extern "C" void RIL_onUnsolicitedResponse(int unsolResponse, const void* data,
     int unsolResponseIndex;
     int ret;
     int64_t timeReceived = 0;
-    bool shouldScheduleTimeout = false;
     RIL_RadioState newState;
 
     if (s_registerCalled == 0) {
@@ -3206,22 +3168,6 @@ extern "C" void RIL_onUnsolicitedResponse(int unsolResponse, const void* data,
         return;
     }
 
-    // Grab a wake lock if needed for this reponse,
-    // as we exit we'll either release it immediately
-    // or set a timer to release it later.
-    switch (s_unsolResponses[unsolResponseIndex].wakeType) {
-    case WAKE_PARTIAL:
-        grabPartialWakeLock();
-        shouldScheduleTimeout = true;
-        break;
-
-    case DONT_WAKE:
-    default:
-        // No wake lock is grabed so don't set timeout
-        shouldScheduleTimeout = false;
-        break;
-    }
-
     Parcel p;
 
     p.writeInt32(RESPONSE_UNSOLICITED);
@@ -3231,7 +3177,7 @@ extern "C" void RIL_onUnsolicitedResponse(int unsolResponse, const void* data,
               .responseFunction(p, const_cast<void*>(data), datalen);
     if (ret != 0) {
         // Problem with the response. Don't continue;
-        goto error_exit;
+        return;
     }
 
     // some things get more payload
@@ -3253,23 +3199,6 @@ extern "C" void RIL_onUnsolicitedResponse(int unsolResponse, const void* data,
         break;
     }
 
-    if (s_callbacks.version < 13) {
-        if (shouldScheduleTimeout) {
-            UserCallbackInfo* p_info = internalRequestTimedCallback(wakeTimeoutCallback, NULL,
-                &TIMEVAL_WAKE_TIMEOUT);
-
-            if (p_info == NULL) {
-                goto error_exit;
-            } else {
-                // Cancel the previous request
-                if (s_last_wake_timeout_info != NULL) {
-                    s_last_wake_timeout_info->userParam = (void*)1;
-                }
-                s_last_wake_timeout_info = p_info;
-            }
-        }
-    }
-
 #if VDBG
     RLOGI("%s UNSOLICITED: %s length:%d", rilSocketIdToString(soc_id), requestToString(unsolResponse), p.dataSize());
 #endif
@@ -3289,18 +3218,10 @@ extern "C" void RIL_onUnsolicitedResponse(int unsolResponse, const void* data,
         s_lastNITZTimeData = calloc(p.dataSize(), 1);
         if (s_lastNITZTimeData == NULL) {
             RLOGE("Memory allocation failed in RIL_onUnsolicitedResponse");
-            goto error_exit;
+            return;
         }
         s_lastNITZTimeDataSize = p.dataSize();
         memcpy(s_lastNITZTimeData, p.data(), p.dataSize());
-    }
-
-    // Normal exit
-    return;
-
-error_exit:
-    if (shouldScheduleTimeout) {
-        releaseWakeLock();
     }
 }
 
