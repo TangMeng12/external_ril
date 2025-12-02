@@ -45,6 +45,9 @@ static const char* getVersion(void);
 
 static pthread_mutex_t s_state_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t s_state_cond = PTHREAD_COND_INITIALIZER;
+static pthread_mutex_t s_initMutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t s_initCond = PTHREAD_COND_INITIALIZER;
+static int s_initDone = 0;
 
 static RIL_RadioState sState = RADIO_STATE_UNAVAILABLE;
 
@@ -400,6 +403,12 @@ static void initializeCallback(void* param)
     if (isRadioOn() > 0) {
         setRadioState(RADIO_STATE_ON);
     }
+
+    RLOGD("initializeCallback: done, signaling mainLoop");
+    pthread_mutex_lock(&s_initMutex);
+    s_initDone = 1;
+    pthread_cond_signal(&s_initCond);
+    pthread_mutex_unlock(&s_initMutex);
 }
 
 /**
@@ -506,17 +515,22 @@ static void* mainLoop(void* param)
 
         if (ret < 0) {
             RLOGE("AT error %d on at_open\n", ret);
+            close(fd);
             return 0;
         }
 
+        pthread_mutex_lock(&s_initMutex);
+        s_initDone = 0;
         RIL_requestTimedCallback(initializeCallback, NULL, &TIMEVAL_0);
-
-        // Give initializeCallback a chance to dispatched, since
-        // we don't presently have a cancellation mechanism
-        sleep(1);
+        while (s_initDone == 0) {
+            RLOGD("mainLoop: waiting for initializeCallback to finish...");
+            pthread_cond_wait(&s_initCond, &s_initMutex);
+        }
+        pthread_mutex_unlock(&s_initMutex);
 
         waitForClose();
         RLOGI("Re-opening after close");
+        sleep(1);
     }
 }
 
