@@ -3199,9 +3199,8 @@ extern "C" void RIL_onUnsolicitedResponse(int unsolResponse, const void* data,
         break;
     }
 
-#if VDBG
-    RLOGI("%s UNSOLICITED: %s length:%d", rilSocketIdToString(soc_id), requestToString(unsolResponse), p.dataSize());
-#endif
+    RLOGI("UNSOLICITED: %s length: %d", requestToString(unsolResponse), (int)p.dataSize());
+
     ret = sendResponse(p);
     if (ret != 0 && unsolResponse == RIL_UNSOL_NITZ_TIME_RECEIVED) {
 
