@@ -31,7 +31,7 @@
 #include <local_socket.h>
 #include <telephony/ril.h>
 
-#ifdef CONFIG_NET_RPMSG
+#ifdef CONFIG_RPMSG_RIL
 
 #include <netpacket/rpmsg.h>
 
@@ -126,7 +126,7 @@ int local_get_control_socket(const char* name)
 
 int ril_socket_create(void)
 {
-#if defined(CONFIG_NET_RPMSG)
+#if defined(CONFIG_RPMSG_RIL)
     return create_rpmsg_socket();
 
 #else
